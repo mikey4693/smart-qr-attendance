@@ -33,7 +33,7 @@
 
   <section class="card">
     <h2>1. Scan a test QR code</h2>
-    <p class="small">Use a QR code whose contents are exactly <code>STU001</code> or <code>STU002</code>. If a code contains a website URL or personal details, this demo will not treat it as a registered student.</p>
+    <p class="small">Use a QR code whose contents are exactly one of the registered numbers shown below. If a code contains a website URL or other text, this demo will not treat it as a registered student.</p>
     <div id="reader"></div>
     <button id="startBtn">Start camera</button>
     <button id="stopBtn" class="secondary">Stop camera</button>
@@ -42,9 +42,9 @@
 
   <section class="card">
     <h2>2. Test student records</h2>
-    <p class="small">These names and IDs are fictional examples.</p>
+    <p class="small">Demo records configured for this prototype. Use real student details only with permission.</p>
     <table>
-      <thead><tr><th>Student ID</th><th>Name</th></tr></thead>
+      <thead><tr><th>Register No.</th><th>Name</th></tr></thead>
       <tbody id="students"></tbody>
     </table>
   </section>
@@ -56,7 +56,7 @@
     <button id="clearBtn" class="secondary">Clear test attendance</button>
     <div style="overflow-x:auto">
       <table>
-        <thead><tr><th>Student ID</th><th>Name</th><th>Date/time</th><th>Session</th></tr></thead>
+        <thead><tr><th>Register No.</th><th>Name</th><th>Date/time</th><th>Session</th></tr></thead>
         <tbody id="attendance"></tbody>
       </table>
     </div>
@@ -64,7 +64,7 @@
 
   <section class="card warning">
     <strong>Prototype safety notes</strong>
-    <p class="small">Use only fictional test IDs until you have permission to process real student information. A QR code proves only that a code was scanned; it does not prove who is holding the card. This page is a demonstration, not a secure attendance system.</p>
+    <p class="small">This prototype includes student names and register numbers. Do not publish it publicly or process real student information unless you have permission. A QR code proves only that a code was scanned; it does not prove who is holding the card. This page is a demonstration, not a secure attendance system.</p>
   </section>
 </main>
 <script>
@@ -107,7 +107,7 @@
     if (value === lastValue && nowMs - lastAt < 2500) return;
     lastValue = value; lastAt = nowMs;
 
-    // This demo accepts only the fictional IDs listed above, not arbitrary URLs.
+    // This demo accepts only the register numbers listed above, not arbitrary URLs.
     if (!Object.prototype.hasOwnProperty.call(students, value)) {
       setStatus("Not a registered test QR. Scanned content: " + value, "bad");
       return;
@@ -136,7 +136,7 @@
       const preferred = cameras.find(c => /back|rear|environment/i.test(c.label)) || cameras[0];
       await scanner.start(preferred.id, { fps: 10, qrbox: { width: 240, height: 240 } }, processCode, () => {});
       started = true;
-      setStatus("Camera started. Scan a test QR containing STU001 or STU002.", "");
+      setStatus("Camera started. Scan a QR containing one of the registered numbers shown in the table.", "");
     } catch (err) {
       setStatus("Could not start camera: " + (err.message || err) + ". Camera access normally requires HTTPS or localhost and browser permission.", "bad");
       scanner = null;
@@ -151,7 +151,7 @@
   document.getElementById("startBtn").addEventListener("click", startCamera);
   document.getElementById("stopBtn").addEventListener("click", stopCamera);
   document.getElementById("exportBtn").addEventListener("click", () => {
-    const rows = [["Student ID","Name","Date/time","Session"], ...getRecords().map(r => [r.id,r.name,r.time,r.session])];
+    const rows = [["Register No.","Name","Date/time","Session"], ...getRecords().map(r => [r.id,r.name,r.time,r.session])];
     const csv = rows.map(row => row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\r\n");
     const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
     const url = URL.createObjectURL(blob);
@@ -159,7 +159,7 @@
     URL.revokeObjectURL(url);
   });
   document.getElementById("clearBtn").addEventListener("click", () => {
-    if (confirm("Clear all fictional test attendance records from this browser?")) {
+    if (confirm("Clear all attendance records from this browser?")) {
       localStorage.removeItem(storageKey); render(); setStatus("Test attendance cleared.", "");
     }
   });
