@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart QR Attendance — Prototype</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    :root { font-family: system-ui, Arial, sans-serif; color: #172033; background: #f4f7fb; }
+    body { margin: 0; padding: 20px; }
+    main { max-width: 760px; margin: auto; }
+    h1 { margin-bottom: 6px; }
+    .note { color: #4b5870; }
+    .card { background: white; border: 1px solid #dce3ee; border-radius: 14px; padding: 18px; margin: 16px 0; }
+    button { border: 0; border-radius: 9px; padding: 11px 15px; background: #185adb; color: white; font-weight: 650; cursor: pointer; margin: 4px 4px 4px 0; }
+    button.secondary { background: #e8eef9; color: #172033; }
+    input, select { box-sizing: border-box; padding: 10px; border: 1px solid #bcc8da; border-radius: 8px; margin: 4px 4px 4px 0; max-width: 100%; }
+    #reader { width: 100%; max-width: 480px; }
+    #status { padding: 10px; border-radius: 8px; background: #eef3fb; margin-top: 12px; overflow-wrap: anywhere; }
+    #status.ok { background: #e5f7eb; color: #155b2d; }
+    #status.bad { background: #fff0e8; color: #8b3213; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: 9px 7px; border-bottom: 1px solid #e5eaf2; overflow-wrap: anywhere; }
+    th { color: #4b5870; }
+    .small { font-size: .9rem; }
+    .warning { border-left: 4px solid #e1a000; padding-left: 12px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Smart QR Attendance</h1>
+  <p class="note">A local prototype using fictional student records. It does not connect to your college website.</p>
+
+  <section class="card">
+    <h2>1. Scan a test QR code</h2>
+    <p class="small">Use a QR code whose contents are exactly <code>STU001</code> or <code>STU002</code>. If a code contains a website URL or personal details, this demo will not treat it as a registered student.</p>
+    <div id="reader"></div>
+    <button id="startBtn">Start camera</button>
+    <button id="stopBtn" class="secondary">Stop camera</button>
+    <div id="status" role="status">Camera not started yet.</div>
+  </section>
+
+  <section class="card">
+    <h2>2. Test student records</h2>
+    <p class="small">These names and IDs are fictional examples.</p>
+    <table>
+      <thead><tr><th>Student ID</th><th>Name</th></tr></thead>
+      <tbody id="students"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>3. Attendance for this browser</h2>
+    <p class="small">Records are stored only in this browser on this device. Clearing browser data may remove them.</p>
+    <button id="exportBtn">Download attendance CSV</button>
+    <button id="clearBtn" class="secondary">Clear test attendance</button>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Student ID</th><th>Name</th><th>Date/time</th><th>Session</th></tr></thead>
+        <tbody id="attendance"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card warning">
+    <strong>Prototype safety notes</strong>
+    <p class="small">Use only fictional test IDs until you have permission to process real student information. A QR code proves only that a code was scanned; it does not prove who is holding the card. This page is a demonstration, not a secure attendance system.</p>
+  </section>
+</main>
+<script>
+(() => {
+  const students = {
+    "STU001": "Test Student One",
+    "STU002": "Test Student Two"
+  };
+  const session = new Date().toISOString().slice(0, 10);
+  const storageKey = "smartQrAttendanceDemo";
+  let scanner = null;
+  let started = false;
+  let lastValue = "";
+  let lastAt = 0;
+
+  const status = document.getElementById("status");
+  const clean = (s) => String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  }[c]));
+
+  function getRecords() {
+    try { return JSON.parse(localStorage.getItem(storageKey) || "[]"); }
+    catch { return []; }
+  }
+  function setStatus(message, kind = "") {
+    status.className = kind;
+    status.textContent = message;
+  }
+  function render() {
+    document.getElementById("students").innerHTML = Object.entries(students)
+      .map(([id, name]) => `<tr><td>${clean(id)}</td><td>${clean(name)}</td></tr>`).join("");
+    const records = getRecords();
+    document.getElementById("attendance").innerHTML = records.length
+      ? records.slice().reverse().map(r => `<tr><td>${clean(r.id)}</td><td>${clean(r.name)}</td><td>${clean(r.time)}</td><td>${clean(r.session)}</td></tr>`).join("")
+      : '<tr><td colspan="4">No attendance recorded yet.</td></tr>';
+  }
+  function processCode(decodedText) {
+    const value = decodedText.trim();
+    const nowMs = Date.now();
+    if (value === lastValue && nowMs - lastAt < 2500) return;
+    lastValue = value; lastAt = nowMs;
+
+    // This demo accepts only the fictional IDs listed above, not arbitrary URLs.
+    if (!Object.prototype.hasOwnProperty.call(students, value)) {
+      setStatus("Not a registered test QR. Scanned content: " + value, "bad");
+      return;
+    }
+    const records = getRecords();
+    if (records.some(r => r.id === value && r.session === session)) {
+      setStatus(students[value] + " is already marked present for today's test session.", "bad");
+      return;
+    }
+    const time = new Date().toLocaleString();
+    records.push({ id: value, name: students[value], time, session });
+    localStorage.setItem(storageKey, JSON.stringify(records));
+    setStatus("Attendance recorded for " + students[value] + " (" + value + ").", "ok");
+    render();
+  }
+  async function startCamera() {
+    if (started) return;
+    if (typeof Html5Qrcode === "undefined") {
+      setStatus("QR scanner library did not load. Check internet access and reload this page.", "bad");
+      return;
+    }
+    scanner = new Html5Qrcode("reader");
+    try {
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras || !cameras.length) throw new Error("No camera was found.");
+      const preferred = cameras.find(c => /back|rear|environment/i.test(c.label)) || cameras[0];
+      await scanner.start(preferred.id, { fps: 10, qrbox: { width: 240, height: 240 } }, processCode, () => {});
+      started = true;
+      setStatus("Camera started. Scan a test QR containing STU001 or STU002.", "");
+    } catch (err) {
+      setStatus("Could not start camera: " + (err.message || err) + ". Camera access normally requires HTTPS or localhost and browser permission.", "bad");
+      scanner = null;
+    }
+  }
+  async function stopCamera() {
+    if (!scanner || !started) return;
+    try { await scanner.stop(); await scanner.clear(); } catch {}
+    scanner = null; started = false;
+    setStatus("Camera stopped.", "");
+  }
+  document.getElementById("startBtn").addEventListener("click", startCamera);
+  document.getElementById("stopBtn").addEventListener("click", stopCamera);
+  document.getElementById("exportBtn").addEventListener("click", () => {
+    const rows = [["Student ID","Name","Date/time","Session"], ...getRecords().map(r => [r.id,r.name,r.time,r.session])];
+    const csv = rows.map(row => row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\r\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "test-attendance.csv"; a.click();
+    URL.revokeObjectURL(url);
+  });
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    if (confirm("Clear all fictional test attendance records from this browser?")) {
+      localStorage.removeItem(storageKey); render(); setStatus("Test attendance cleared.", "");
+    }
+  });
+  render();
+})();
+</script>
+</body>
+</html>
