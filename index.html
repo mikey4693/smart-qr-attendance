@@ -65,9 +65,18 @@ function decodeCandidates(raw){
  if(!s.includes('/')&&/^[A-Za-z0-9+/]+=*$/.test(s)){try{out.push(atob(s))}catch{}}
  return [...new Set(out.map(v=>String(v).trim()).filter(Boolean))];
 }
+// Map a college QR's decoded internal ID to the register number in the imported CSV.
+// Add more entries as you test other students' QR codes: 'QR_ID': 'REGISTER_NUMBER'
+const QR_ID_TO_REG = {
+ '10505': '2117260040376'
+};
 function findStudent(raw){
  const candidates=decodeCandidates(raw);
- return students.find(st=>candidates.some(c=>norm(c)===norm(st.reg)))||null;
+ const direct=students.find(st=>candidates.some(c=>norm(c)===norm(st.reg)));
+ if(direct)return direct;
+ const mappedReg=candidates.map(c=>QR_ID_TO_REG[norm(c)]).find(Boolean);
+ if(mappedReg)return students.find(st=>norm(st.reg)===norm(mappedReg))||null;
+ return null;
 }
 function markAttendance(raw){
  const st=findStudent(raw);
