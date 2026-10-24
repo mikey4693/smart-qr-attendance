@@ -1,122 +1,108 @@
 
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Smart QR Attendance — CSV Import</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart QR Attendance</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
-:root{--ink:#182338;--muted:#617089;--line:#dce4ef;--bg:#f4f7fb;--brand:#315ee7;--green:#087f5b;--red:#b42318}
+:root{font-family:Arial,sans-serif;color:#182338;background:#f4f7fb}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{background:linear-gradient(135deg,#172554,#315ee7);color:#fff;padding:26px 18px}
-header .wrap,main{max-width:1000px;margin:auto}
-h1{margin:0 0 6px;font-size:clamp(1.5rem,5vw,2.2rem)}
-header p{margin:0;color:#e2eaff}
-main{padding:18px;display:grid;gap:16px}
-.card{background:white;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 5px 18px #16284b0a}
-h2{font-size:1.15rem;margin:0 0 10px}
-.muted,.hint{color:var(--muted);font-size:.92rem}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-button,.button{border:0;border-radius:10px;background:var(--brand);color:white;padding:11px 15px;font:inherit;font-weight:650;cursor:pointer}
-button.secondary{background:#e9eefb;color:#1f3e99}
-button.danger{background:#fff0ef;color:var(--red)}
-button:disabled{opacity:.45;cursor:not-allowed}
-input,select{font:inherit;padding:10px;border:1px solid #cbd5e1;border-radius:9px;max-width:100%}
-input[type=file]{width:100%;background:#f8fafc}
-#reader{width:100%;max-width:520px;margin:14px auto 0}
-#status,#scanStatus{padding:12px;border-radius:10px;background:#f1f5f9;margin-top:12px;overflow-wrap:anywhere}
-.success{background:#e9fbf2!important;color:#075c42}
-.error{background:#fff0ef!important;color:#922018}
-.stats{display:flex;gap:10px;flex-wrap:wrap}
-.stat{background:#f3f6ff;border-radius:12px;padding:10px 14px;min-width:120px}
-.stat strong{display:block;font-size:1.35rem}
-.table-wrap{overflow:auto}
-table{border-collapse:collapse;width:100%;min-width:520px}
-th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);font-size:.92rem}
+body{margin:0}
+header{background:linear-gradient(135deg,#172554,#315ee7);color:white;padding:24px}
+header,main{padding-left:18px;padding-right:18px}
+header h1,header p{max-width:960px;margin:8px auto}
+main{max-width:1000px;margin:auto;padding-top:18px;padding-bottom:30px;display:grid;gap:16px}
+.card{background:white;border:1px solid #dce4ef;border-radius:14px;padding:18px}
+h2{font-size:19px;margin-top:0}
+p{line-height:1.5}
+.muted{color:#617089;font-size:14px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+button{background:#315ee7;color:white;border:0;border-radius:9px;padding:11px 15px;cursor:pointer;font-size:15px}
+.secondary{background:#e9eefb;color:#1f3e99}
+.danger{background:#fff0ef;color:#b42318}
+input,select{padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px;max-width:100%}
+input[type=file]{width:100%}
+.field{display:grid;gap:6px;flex:1;min-width:180px;margin:10px 0}
+#reader{max-width:520px;margin:12px auto}
+.status{padding:12px;border-radius:9px;background:#f1f5f9;margin-top:10px;overflow-wrap:anywhere}
+.success{background:#e9fbf2;color:#075c42}
+.error{background:#fff0ef;color:#922018}
+.tablewrap{overflow-x:auto;margin-top:12px}
+table{width:100%;border-collapse:collapse;min-width:500px}
+th,td{text-align:left;padding:10px;border-bottom:1px solid #dce4ef;font-size:14px}
 th{background:#f8fafc}
-.empty{color:var(--muted);padding:12px 0}
-.field{display:grid;gap:5px;flex:1;min-width:150px}
-.small{font-size:.84rem}
-.pill{display:inline-block;border-radius:99px;background:#e9eefb;color:#24439c;padding:3px 8px;font-size:.8rem}
+.stat{display:inline-block;background:#f3f6ff;padding:12px;border-radius:10px;margin-right:8px}
+.stat strong{font-size:22px;display:block}
 </style>
 </head>
 <body>
 <header>
-<div class="wrap">
 <h1>Smart QR Attendance</h1>
-<p>Mobile-friendly prototype · Import students · Scan ID QR codes · Export attendance</p>
-</div>
+<p>Scan student ID cards, mark attendance and export records.</p>
 </header>
-
 <main>
+
 <section class="card">
-<h2>1. Import student list (CSV)</h2>
-<p class="muted">Choose a CSV with columns such as Student Name, Register Number, Course and Department. Save your Excel file as CSV first. Data is stored in this browser on this device.</p>
+<h2>1. Import student list</h2>
+<p class="muted">Import a CSV file with Student Name and Register Number columns. Excel files should be saved as CSV first.</p>
 <div class="row">
 <input id="csvFile" type="file" accept=".csv,text/csv">
 <button id="importBtn">Import CSV</button>
-<button id="sampleBtn" class="secondary">Download CSV template</button>
+<button id="templateBtn" class="secondary">CSV template</button>
 </div>
-<div id="importStatus" class="hint" aria-live="polite"></div>
+<div id="importStatus" class="status">Import your student list to begin.</div>
 </section>
 
 <section class="card">
-<h2>2. Scan a college ID QR code</h2>
-<p class="muted">Test whether this browser can read the college verification page. If the college server blocks cross-origin requests, automatic matching needs an approved backend or a saved QR mapping.</p>
-<div class="row">
-<button id="testAutoBtn" class="secondary">Test automatic page access</button>
-</div>
-<div id="autoTestStatus" class="hint" aria-live="polite" style="margin-top:8px"></div>
+<h2>2. Scan a college QR code</h2>
+<p class="muted">Allow camera access. QR IDs are decoded and converted to register numbers using the formula below. The calculated student must exist in your imported list.</p>
+<p><strong>Formula:</strong> Register Number = QR ID + 2117260039871</p>
 <div class="row">
 <button id="startBtn">Start camera</button>
 <button id="stopBtn" class="secondary" disabled>Stop camera</button>
 </div>
 <div id="reader"></div>
-<div id="scanStatus" aria-live="polite">Camera not started yet.</div>
-<div id="manual" class="row" style="margin-top:12px">
+<div id="scanStatus" class="status">Camera not started.</div>
 <div class="field">
-<label for="manualId">Manual register number / QR text</label>
-<input id="manualId" placeholder="Enter register number or paste QR URL">
-</div>
-<button id="manualBtn">Find student</button>
+<label for="manualId">Or paste a register number, QR ID or complete QR URL</label>
+<input id="manualId" placeholder="Paste QR URL here">
+<button id="manualBtn">Find student / Mark attendance</button>
 </div>
 </section>
 
 <section class="card">
-<h2>3. Register QR codes for students</h2>
-<p class="muted">College QR codes can contain internal IDs instead of register numbers. If a QR is not recognized, select the correct student and save the mapping once. Future scans of that QR can use the saved mapping on this browser.</p>
+<h2>3. Manual QR mappings</h2>
+<p class="muted">If a QR does not follow the formula, save a manual mapping for that student. Mappings are stored in this browser.</p>
 <div class="field">
-<label for="mappingQr">Scanned QR URL or QR ID</label>
-<input id="mappingQr" placeholder="Scan a QR above, or paste its URL / ID">
+<label for="mappingQr">QR URL or QR ID</label>
+<input id="mappingQr" placeholder="e.g. https://ims.ritchennai.edu.in/id-card/qr-verification/MTA1MDU=">
 </div>
-<div class="field" style="margin-top:10px">
-<label for="mappingStudent">Match to student in imported list</label>
+<div class="field">
+<label for="mappingStudent">Student</label>
 <select id="mappingStudent"><option value="">Import students first</option></select>
 </div>
-<div class="row" style="margin-top:10px">
-<button id="saveMappingBtn">Save QR mapping</button>
+<div class="row">
+<button id="saveMappingBtn">Save mapping</button>
 <button id="exportMappingsBtn" class="secondary">Export mappings CSV</button>
 </div>
-<div id="mappingStatus" class="hint" aria-live="polite"></div>
-<div class="table-wrap" style="margin-top:12px">
+<div id="mappingStatus" class="status"></div>
+<div class="tablewrap">
 <table>
-<thead><tr><th>QR ID</th><th>Register number</th><th>Student</th></tr></thead>
+<thead><tr><th>QR ID</th><th>Register Number</th><th>Student</th></tr></thead>
 <tbody id="mappingsBody"></tbody>
 </table>
 </div>
 </section>
 
 <section class="card">
-<h2>4. Student records</h2>
-<div class="stats">
-<div class="stat"><strong id="studentCount">0</strong><span class="muted">Students</span></div>
-<div class="stat"><strong id="attendanceCount">0</strong><span class="muted">Attendance records</span></div>
-</div>
-<div class="table-wrap">
+<h2>4. Student list</h2>
+<div class="stat"><strong id="studentCount">0</strong>Students</div>
+<div class="stat"><strong id="attendanceCount">0</strong>Attendance records</div>
+<div class="tablewrap">
 <table>
-<thead><tr><th>Register number</th><th>Name</th><th>Course</th><th>Department</th></tr></thead>
+<thead><tr><th>Register Number</th><th>Name</th><th>Course</th><th>Department</th></tr></thead>
 <tbody id="studentsBody"></tbody>
 </table>
 </div>
@@ -124,356 +110,411 @@ th{background:#f8fafc}
 
 <section class="card">
 <h2>5. Attendance records</h2>
-<div class="row">
 <div class="field">
-<label for="sessionName">Class/session name</label>
+<label for="sessionName">Class / session</label>
 <input id="sessionName" value="ECE G Section">
 </div>
+<div class="row">
 <button id="exportBtn">Download attendance CSV</button>
-<button id="clearAttendanceBtn" class="danger">Clear attendance</button>
+<button id="clearBtn" class="danger">Clear attendance</button>
 </div>
-<div class="table-wrap" style="margin-top:12px">
+<div class="tablewrap">
 <table>
-<thead><tr><th>Register number</th><th>Name</th><th>Date/time</th><th>Session</th></tr></thead>
+<thead><tr><th>Register Number</th><th>Name</th><th>Date/time</th><th>Session</th></tr></thead>
 <tbody id="attendanceBody"></tbody>
 </table>
 </div>
 </section>
 
-<section class="card small">
-<b>Prototype limitations</b>
-<p class="muted">Records are stored only in this browser using localStorage; they do not sync between devices. QR codes can be copied and do not prove who is holding the card. Use student data only with permission. For production, use a secure backend and teacher authentication.</p>
+<section class="card muted">
+Attendance is saved in this browser only. Keep exported backups. QR codes can be copied, so this prototype does not verify who is holding the card.
 </section>
 </main>
 
 <script>
-const STUDENTS_KEY='smartqr_students_v2';
-const ATT_KEY='smartqr_attendance_v2';
-const MAP_KEY='smartqr_qr_mappings_v1';
-
-let students=load(STUDENTS_KEY,[]);
-let attendance=load(ATT_KEY,[]);
-let qrMappings=load(MAP_KEY,{'10505':'2117260040376'});
-let scanner=null,scanning=false,lastScan='';
-
-function load(k,fallback){
- try{return JSON.parse(localStorage.getItem(k))||fallback}
- catch{return fallback}
-}
-function save(){
- localStorage.setItem(STUDENTS_KEY,JSON.stringify(students));
- localStorage.setItem(ATT_KEY,JSON.stringify(attendance));
- localStorage.setItem(MAP_KEY,JSON.stringify(qrMappings));
-}
-function norm(s){
- return String(s??'').trim().toLowerCase().replace(/[\s_-]+/g,'');
-}
-function setMsg(id,msg,type=''){
- const el=document.getElementById(id);
- el.textContent=msg;
- el.className=type;
-}
-function escapeHtml(s){
- return String(s??'').replace(/[&<>"']/g,c=>({
- '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
- }[c]));
-}
-function render(){
- document.getElementById('studentCount').textContent=students.length;
- document.getElementById('attendanceCount').textContent=attendance.length;
-
- document.getElementById('studentsBody').innerHTML=students.length
- ?students.map(s=>`<tr><td>${escapeHtml(s.reg)}</td><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.course||'')}</td><td>${escapeHtml(s.department||'')}</td></tr>`).join('')
- :'<tr><td colspan="4" class="empty">No students imported yet.</td></tr>';
-
- const sel=document.getElementById('mappingStudent');
- if(sel){
-  const old=sel.value;
-  sel.innerHTML='<option value="">Choose a student…</option>'+students.map(st=>`<option value="${escapeHtml(st.reg)}">${escapeHtml(st.name)} — ${escapeHtml(st.reg)}</option>`).join('');
-  if(students.some(st=>st.reg===old))sel.value=old;
- }
-
- document.getElementById('mappingsBody').innerHTML=Object.keys(qrMappings).length
- ?Object.entries(qrMappings).map(([id,reg])=>{
-   const st=students.find(x=>norm(x.reg)===norm(reg));
-   return `<tr><td>${escapeHtml(id)}</td><td>${escapeHtml(reg)}</td><td>${escapeHtml(st?.name||'Student not currently imported')}</td></tr>`;
-  }).join('')
- :'<tr><td colspan="3" class="empty">No QR mappings saved yet.</td></tr>';
-
- document.getElementById('attendanceBody').innerHTML=attendance.length
- ?[...attendance].reverse().map(a=>`<tr><td>${escapeHtml(a.reg)}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.time)}</td><td>${escapeHtml(a.session)}</td></tr>`).join('')
- :'<tr><td colspan="4" class="empty">No attendance recorded yet.</td></tr>';
-}
-
-function parseCSV(text){
- const rows=[];let row=[],field='',quoted=false;
- for(let i=0;i<text.length;i++){
-  const c=text[i];
-  if(quoted){
-   if(c==='"'&&text[i+1]==='"'){field+='"';i++}
-   else if(c==='"')quoted=false;
-   else field+=c;
-  }else if(c==='"')quoted=true;
-  else if(c===','){row.push(field);field=''}
-  else if(c==='\n'){row.push(field);rows.push(row);row=[];field=''}
-  else if(c!=='\r')field+=c;
- }
- if(field.length||row.length){row.push(field);rows.push(row)}
- return rows.filter(r=>r.some(v=>String(v).trim()));
-}
-
-function decodeCandidates(raw){
- const out=[];
- const s=String(raw||'').trim();
- if(!s)return out;
- out.push(s);
- try{
-  const u=new URL(s);
-  const seg=u.pathname.split('/').filter(Boolean).pop();
-  if(seg){
-   out.push(seg);
-   try{
-    const d=atob(seg);
-    out.push(d);
-    try{out.push(decodeURIComponent(d))}catch{}
-   }catch{}
-  }
- }catch{}
- if(!s.includes('/')&&/^[A-Za-z0-9+/]+=*$/.test(s)){
-  try{out.push(atob(s))}catch{}
- }
- return [...new Set(out.map(v=>String(v).trim()).filter(Boolean))];
-}
-
-function findStudent(raw){
+const STUDENTS_KEY = "smartqr_students_v2";
+const ATT_KEY = "smartqr_attendance_v2";
+const MAP_KEY = "smartqr_qr_mappings_v1";
 const QR_TO_REG_OFFSET = 2117260039871;
 
-function findStudent(raw) {
-    const candidates = decodeCandidates(raw);
+function load(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
-    // 1. Check whether the QR already contains a register number
-    const direct = students.find(st =>
-        candidates.some(c => norm(c) === norm(st.reg))
+let students = load(STUDENTS_KEY, []);
+let attendance = load(ATT_KEY, []);
+let qrMappings = load(MAP_KEY, {"10505":"2117260040376"});
+let scanner = null;
+let scanning = false;
+let lastScan = "";
+
+function save() {
+  localStorage.setItem(STUDENTS_KEY, JSON.stringify(students));
+  localStorage.setItem(ATT_KEY, JSON.stringify(attendance));
+  localStorage.setItem(MAP_KEY, JSON.stringify(qrMappings));
+}
+
+function norm(value) {
+  return String(value ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function message(id, text, type = "") {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = "status " + type;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;",
+    '"':"&quot;", "'":"&#39;"
+  })[c]);
+}
+
+// Extract QR text, URL path and decoded Base64 ID.
+function decodeCandidates(raw) {
+  const out = [];
+  const text = String(raw ?? "").trim();
+  if (!text) return out;
+  out.push(text);
+
+  try {
+    const url = new URL(text);
+    const segment = url.pathname.split("/").filter(Boolean).pop();
+    if (segment) {
+      out.push(segment);
+      try {
+        const decoded = atob(segment);
+        out.push(decoded);
+      } catch {}
+    }
+  } catch {}
+
+  // Also support a pasted Base64 QR ID, e.g. MTA1MDU=
+  if (!text.includes("/") && /^[A-Za-z0-9+/]+=*$/.test(text)) {
+    try { out.push(atob(text)); } catch {}
+  }
+
+  return [...new Set(out.map(x => String(x).trim()).filter(Boolean))];
+}
+
+function extractQrId(raw) {
+  const candidates = decodeCandidates(raw);
+  // Prefer the decoded numeric ID, not the Base64 text.
+  return candidates.find(x => /^\d+$/.test(x)) || null;
+}
+
+// Find by register number, saved mapping, or the formula.
+function findStudent(raw) {
+  const candidates = decodeCandidates(raw);
+
+  // Direct register number match.
+  const direct = students.find(student =>
+    candidates.some(candidate => norm(candidate) === norm(student.reg))
+  );
+  if (direct) return direct;
+
+  // Explicit mappings take priority over the formula.
+  for (const candidate of candidates) {
+    const mappedReg = qrMappings[norm(candidate)];
+    if (mappedReg) {
+      const mappedStudent = students.find(
+        student => norm(student.reg) === norm(mappedReg)
+      );
+      if (mappedStudent) return mappedStudent;
+    }
+  }
+
+  // Calculate a register number from the numeric QR ID.
+  const qrIdText = extractQrId(raw);
+  if (qrIdText) {
+    const qrId = Number(qrIdText);
+    if (Number.isSafeInteger(qrId) && qrId > 0) {
+      const calculatedReg = String(qrId + QR_TO_REG_OFFSET);
+      const calculatedStudent = students.find(
+        student => norm(student.reg) === norm(calculatedReg)
+      );
+      if (calculatedStudent) return calculatedStudent;
+    }
+  }
+
+  return null;
+}
+
+function render() {
+  document.getElementById("studentCount").textContent = students.length;
+  document.getElementById("attendanceCount").textContent = attendance.length;
+
+  document.getElementById("studentsBody").innerHTML = students.length
+    ? students.map(s => `<tr>
+        <td>${escapeHtml(s.reg)}</td><td>${escapeHtml(s.name)}</td>
+        <td>${escapeHtml(s.course)}</td><td>${escapeHtml(s.department)}</td>
+      </tr>`).join("")
+    : '<tr><td colspan="4">No students imported.</td></tr>';
+
+  const select = document.getElementById("mappingStudent");
+  const oldValue = select.value;
+  select.innerHTML = '<option value="">Choose a student</option>' +
+    students.map(s => `<option value="${escapeHtml(s.reg)}">${escapeHtml(s.name)} — ${escapeHtml(s.reg)}</option>`).join("");
+  if (students.some(s => s.reg === oldValue)) select.value = oldValue;
+
+  document.getElementById("mappingsBody").innerHTML =
+    Object.entries(qrMappings).map(([id, reg]) => {
+      const s = students.find(st => norm(st.reg) === norm(reg));
+      return `<tr><td>${escapeHtml(id)}</td><td>${escapeHtml(reg)}</td><td>${escapeHtml(s?.name || "")}</td></tr>`;
+    }).join("") || '<tr><td colspan="3">No saved mappings.</td></tr>';
+
+  document.getElementById("attendanceBody").innerHTML =
+    [...attendance].reverse().map(a => `<tr>
+      <td>${escapeHtml(a.reg)}</td><td>${escapeHtml(a.name)}</td>
+      <td>${escapeHtml(a.time)}</td><td>${escapeHtml(a.session)}</td>
+    </tr>`).join("") || '<tr><td colspan="4">No attendance records.</td></tr>';
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(v => String(v).trim()));
+}
+
+function download(filename, content) {
+  const blob = new Blob([content], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function csvContent(rows) {
+  return "\ufeff" + rows.map(row =>
+    row.map(value => '"' + String(value ?? "").replace(/"/g, '""') + '"').join(",")
+  ).join("\r\n");
+}
+
+function markAttendance(raw) {
+  const student = findStudent(raw);
+
+  if (!student) {
+    document.getElementById("mappingQr").value = String(raw ?? "");
+    message("scanStatus",
+      "Student not found. Check that the CSV is imported and contains the calculated register number. You can save a manual mapping below.",
+      "error");
+    return;
+  }
+
+  const session = document.getElementById("sessionName").value.trim() || "Class session";
+  const day = new Date().toLocaleDateString("en-CA");
+
+  if (attendance.some(a => norm(a.reg) === norm(student.reg) &&
+      a.session === session && a.day === day)) {
+    message("scanStatus",
+      `${student.name} (${student.reg}) is already marked present for this session today.`,
+      "error");
+    return;
+  }
+
+  const now = new Date();
+  attendance.push({
+    reg: student.reg,
+    name: student.name,
+    time: now.toLocaleString(),
+    day,
+    session
+  });
+
+  save();
+  render();
+  message("scanStatus",
+    `Attendance marked: ${student.name} — ${student.reg}`,
+    "success");
+}
+
+document.getElementById("importBtn").addEventListener("click", () => {
+  const file = document.getElementById("csvFile").files[0];
+  if (!file) {
+    message("importStatus", "Choose your student CSV first.", "error");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const rows = parseCSV(String(reader.result || ""));
+    if (rows.length < 2) {
+      message("importStatus", "CSV is empty or has no student rows.", "error");
+      return;
+    }
+
+    const headers = rows[0].map(norm);
+    const col = names => headers.findIndex(h =>
+      names.some(n => h === norm(n) || h.includes(norm(n)))
     );
 
-    if (direct) return direct;
+    const nameIndex = col(["Student Name", "Name", "Student"]);
+    const regIndex = col(["Register Number", "Register No", "RegisterNo",
+      "Reg No", "RegNo", "Registration Number", "Roll Number", "Roll No"]);
+    const courseIndex = col(["Course", "Degree", "Programme", "Program"]);
+    const deptIndex = col(["Department", "Dept", "Branch"]);
 
-    // 2. Check manually saved QR mappings first
-    const mappedReg = candidates
-        .map(c => qrMappings[norm(c)])
-        .find(Boolean);
-
-    if (mappedReg) {
-        const mappedStudent = students.find(
-            st => norm(st.reg) === norm(mappedReg)
-        );
-
-        if (mappedStudent) return mappedStudent;
+    if (nameIndex < 0 || regIndex < 0) {
+      message("importStatus",
+        "CSV needs Student Name and Register Number columns.", "error");
+      return;
     }
 
-    // 3. Decode the college QR ID and calculate the register number
-    for (const candidate of candidates) {
-        if (/^\d+$/.test(candidate)) {
-            const qrId = Number(candidate);
+    const map = new Map(students.map(s => [norm(s.reg), s]));
+    let added = 0, updated = 0;
 
-            // Prevent unsafe or invalid numeric values
-            if (!Number.isSafeInteger(qrId) || qrId <= 0) continue;
+    for (const row of rows.slice(1)) {
+      const name = (row[nameIndex] || "").trim();
+      const reg = (row[regIndex] || "").trim();
+      if (!name || !reg) continue;
 
-            const calculatedReg = String(
-                qrId + QR_TO_REG_OFFSET
-            );
+      const student = {
+        name, reg,
+        course: courseIndex >= 0 ? (row[courseIndex] || "").trim() : "",
+        department: deptIndex >= 0 ? (row[deptIndex] || "").trim() : ""
+      };
 
-            // Match against the imported student list
-            const student = students.find(
-                st => norm(st.reg) === norm(calculatedReg)
-            );
-
-            if (student) return student;
-        }
+      if (map.has(norm(reg))) updated++;
+      else added++;
+      map.set(norm(reg), {...map.get(norm(reg)), ...student});
     }
 
-    // 4. No matching student found
-    return null;
-}
-}
-
-document.getElementById('testAutoBtn').addEventListener('click',async()=>{
- const status=document.getElementById('autoTestStatus');
- status.textContent='Testing public verification page access…';
- status.className='hint';
- try{
-  const response=await fetch('https://ims.ritchennai.edu.in/id-card/qr-verification/MTA1MDU=',{mode:'cors'});
-  if(!response.ok)throw new Error('HTTP '+response.status);
-  await response.text();
-  status.textContent='The browser can read the page. Automatic register-number extraction still needs a verified page format.';
-  status.className='success';
- }catch(err){
-  status.textContent='The browser could not read the college page (often CORS or network restrictions). Opening the page in a tab does not guarantee JavaScript access. Saved QR mappings still work. Error: '+(err?.message||'request failed');
-  status.className='error';
- }
+    students = [...map.values()];
+    save();
+    render();
+    message("importStatus",
+      `Import complete: ${added} added, ${updated} updated. Total: ${students.length}.`,
+      "success");
+  };
+  reader.readAsText(file);
 });
 
-function markAttendance(raw){
- const st=findStudent(raw);
- if(!st){
-  document.getElementById('mappingQr').value=String(raw||'');
-  setMsg('scanStatus','Student not found yet. The QR has been copied to the mapping section below. Select the correct student and tap Save QR mapping, then scan again.','error');
-  return;
- }
- const session=document.getElementById('sessionName').value.trim()||'Class session';
- const day=new Date().toLocaleDateString('en-CA');
- if(attendance.some(a=>a.reg===st.reg&&a.session===session&&a.day===day)){
-  setMsg('scanStatus',`${st.name} (${st.reg}) is already marked present for "${session}" today.`,'error');
-  return;
- }
- const now=new Date();
- attendance.push({reg:st.reg,name:st.name,time:now.toLocaleString(),iso:now.toISOString(),day,session});
- save();render();
- setMsg('scanStatus',`Attendance marked: ${st.name} · ${st.reg} · ${st.department||st.course||''}`,'success');
-}
+document.getElementById("templateBtn").addEventListener("click", () => {
+  download("student-template.csv",
+    "Student Name,Register Number,Course,Department\nExample Student,2117260040380,B.E.,ECE\n");
+});
 
-function importCSV(){
- const file=document.getElementById('csvFile').files[0];
- if(!file){setMsg('importStatus','Choose a CSV file first.','error');return}
- const reader=new FileReader();
- reader.onload=()=>{
-  const rows=parseCSV(String(reader.result||''));
-  if(rows.length<2){setMsg('importStatus','CSV appears empty or has no data rows.','error');return}
-  const headers=rows[0].map(norm);
-  function col(names){return headers.findIndex(h=>names.some(n=>h===norm(n)||h.includes(norm(n))))}
-  const nameI=col(['Student Name','Name','Student']);
-  const regI=col(['Register Number','Register No','RegisterNo','Reg No','RegNo','Registration Number','Roll Number','Roll No']);
-  const courseI=col(['Course','Degree','Programme','Program']);
-  const deptI=col(['Department','Dept','Branch']);
-  const batchI=col(['Batch','Year']);
-  const sectionI=col(['Section']);
-  if(nameI<0||regI<0){
-   setMsg('importStatus','Could not identify required columns. Include headers for Student Name and Register Number (or Reg No).','error');
-   return;
+document.getElementById("manualBtn").addEventListener("click", () => {
+  markAttendance(document.getElementById("manualId").value);
+});
+
+document.getElementById("manualId").addEventListener("keydown", e => {
+  if (e.key === "Enter") markAttendance(e.target.value);
+});
+
+document.getElementById("saveMappingBtn").addEventListener("click", () => {
+  const raw = document.getElementById("mappingQr").value.trim();
+  const reg = document.getElementById("mappingStudent").value;
+
+  if (!raw || !reg) {
+    message("mappingStatus", "Enter the QR URL / ID and choose a student.", "error");
+    return;
   }
-  const incoming=[];
-  for(const r of rows.slice(1)){
-   const name=(r[nameI]||'').trim(),reg=(r[regI]||'').trim();
-   if(!name||!reg)continue;
-   incoming.push({
-    name,reg,
-    course:courseI>=0?(r[courseI]||'').trim():'',
-    department:deptI>=0?(r[deptI]||'').trim():'',
-    batch:batchI>=0?(r[batchI]||'').trim():'',
-    section:sectionI>=0?(r[sectionI]||'').trim():''
-   });
+
+  const student = students.find(s => norm(s.reg) === norm(reg));
+  if (!student) {
+    message("mappingStatus", "Import the student list first.", "error");
+    return;
   }
-  const map=new Map(students.map(s=>[norm(s.reg),s]));
-  let added=0,updated=0;
-  for(const s of incoming){
-   const key=norm(s.reg);
-   if(map.has(key)){map.set(key,{...map.get(key),...s});updated++}
-   else{map.set(key,s);added++}
+
+  const qrId = extractQrId(raw);
+  if (!qrId) {
+    message("mappingStatus", "Could not extract a numeric QR ID. Paste the full QR URL or its numeric ID.", "error");
+    return;
   }
-  students=[...map.values()];
-  save();render();
-  setMsg('importStatus',`Import complete: ${added} added, ${updated} updated. ${students.length} total students.`,'success');
- };
- reader.readAsText(file);
-}
 
-document.getElementById('importBtn').addEventListener('click',importCSV);
-
-document.getElementById('saveMappingBtn').addEventListener('click',()=>{
- const raw=document.getElementById('mappingQr').value.trim();
- const reg=document.getElementById('mappingStudent').value;
- if(!raw){setMsg('mappingStatus','Scan an unknown QR or paste its QR URL / ID first.','error');return}
- if(!reg){setMsg('mappingStatus','Choose the matching student from the imported list.','error');return}
- const st=students.find(x=>norm(x.reg)===norm(reg));
- if(!st){setMsg('mappingStatus','That student is not in the imported list. Import the CSV first.','error');return}
- const candidates=decodeCandidates(raw);
- let id=candidates.find(c=>/^\d+$/.test(c)&&!students.some(x=>norm(x.reg)===norm(c)));
- if(!id){
-  id=candidates.find(c=>c.includes('=')&&/^[A-Za-z0-9+/]+=*$/.test(c));
-  if(id){try{id=atob(id)}catch{}}
- }
- if(!id){
-  setMsg('mappingStatus','Could not identify the QR internal ID. Paste the full college QR URL, such as the URL ending in a Base64 ID.','error');
-  return;
- }
- qrMappings[norm(id)]=st.reg;
- save();render();
- setMsg('mappingStatus',`Saved QR ID ${id} → ${st.name} (${st.reg}). Scan that card again to mark attendance.`,'success');
+  qrMappings[norm(qrId)] = student.reg;
+  save();
+  render();
+  message("mappingStatus",
+    `Saved QR ID ${qrId} → ${student.name} (${student.reg}).`,
+    "success");
 });
 
-document.getElementById('exportMappingsBtn').addEventListener('click',()=>{
- const rows=[['QR ID','Register Number','Student Name'],...Object.entries(qrMappings).map(([id,reg])=>[id,reg,students.find(s=>norm(s.reg)===norm(reg))?.name||''])];
- const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
- download('qr-mappings.csv','\ufeff'+csv);
+document.getElementById("exportMappingsBtn").addEventListener("click", () => {
+  const rows = [["QR ID", "Register Number", "Student Name"]];
+  for (const [id, reg] of Object.entries(qrMappings)) {
+    rows.push([id, reg, students.find(s => norm(s.reg) === norm(reg))?.name || ""]);
+  }
+  download("qr-mappings.csv", csvContent(rows));
 });
 
-document.getElementById('sampleBtn').addEventListener('click',()=>{
- download('student-template.csv','Student Name,Register Number,Course,Department,Batch,Section\nExample Student,10509,B.E.,ECE,2023-2027,G\n');
+document.getElementById("exportBtn").addEventListener("click", () => {
+  const rows = [["Register Number", "Student Name", "Date/Time", "Session"]];
+  attendance.forEach(a => rows.push([a.reg, a.name, a.time, a.session]));
+  download("attendance.csv", csvContent(rows));
 });
 
-function download(name,content){
- const blob=new Blob([content],{type:'text/csv;charset=utf-8;'});
- const url=URL.createObjectURL(blob);
- const a=document.createElement('a');
- a.href=url;a.download=name;a.click();
- setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-
-document.getElementById('manualBtn').addEventListener('click',()=>{
- markAttendance(document.getElementById('manualId').value);
-});
-document.getElementById('manualId').addEventListener('keydown',e=>{
- if(e.key==='Enter')markAttendance(e.target.value);
+document.getElementById("clearBtn").addEventListener("click", () => {
+  if (confirm("Delete all attendance records stored in this browser?")) {
+    attendance = [];
+    save();
+    render();
+    message("scanStatus", "Attendance records cleared.");
+  }
 });
 
-document.getElementById('startBtn').addEventListener('click',async()=>{
- if(!window.Html5Qrcode){
-  setMsg('scanStatus','QR scanner library did not load. Check your internet connection, or use manual entry.','error');
-  return;
- }
- try{
-  scanner=new Html5Qrcode('reader');
-  await scanner.start(
-   {facingMode:'environment'},
-   {fps:10,qrbox:{width:240,height:240}},
-   decoded=>{
-    if(decoded===lastScan)return;
-    lastScan=decoded;
-    markAttendance(decoded);
-    setTimeout(()=>{lastScan=''},1800);
-   },
-   ()=>{}
-  );
-  scanning=true;
-  document.getElementById('startBtn').disabled=true;
-  document.getElementById('stopBtn').disabled=false;
-  setMsg('scanStatus','Camera is running. Point it at a student ID QR code.');
- }catch(e){
-  setMsg('scanStatus','Could not start camera. Allow camera permission and open this page over HTTPS. Manual entry is available as a fallback. '+e,'error');
- }
+document.getElementById("startBtn").addEventListener("click", async () => {
+  if (!window.Html5Qrcode) {
+    message("scanStatus", "QR library failed to load. Check your internet connection.", "error");
+    return;
+  }
+
+  try {
+    scanner = new Html5Qrcode("reader");
+    await scanner.start(
+      {facingMode:"environment"},
+      {fps:10, qrbox:{width:240, height:240}},
+      decoded => {
+        if (decoded === lastScan) return;
+        lastScan = decoded;
+        markAttendance(decoded);
+        setTimeout(() => { lastScan = ""; }, 1800);
+      },
+      () => {}
+    );
+    scanning = true;
+    document.getElementById("startBtn").disabled = true;
+    document.getElementById("stopBtn").disabled = false;
+    message("scanStatus", "Camera running. Point it at a student QR code.");
+  } catch (error) {
+    message("scanStatus",
+      "Camera could not start. Allow camera permission and use the HTTPS website. " + error,
+      "error");
+  }
 });
 
-document.getElementById('stopBtn').addEventListener('click',async()=>{
- if(scanner&&scanning){
-  try{await scanner.stop();await scanner.clear()}catch{}
-  scanning=false;
-  document.getElementById('startBtn').disabled=false;
-  document.getElementById('stopBtn').disabled=true;
-  setMsg('scanStatus','Camera stopped.');
- }
-});
-
-document.getElementById('exportBtn').addEventListener('click',()=>{
- const rows=[['Register Number','Student Name','Date/Time','Session'],...attendance.map(a=>[a.reg,a.name,a.time,a.session])];
- const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
- download('attendance.csv','\ufeff'+csv);
-});
-
-document.getElementById('clearAttendanceBtn').addEventListener('click',()=>{
- if(confirm('Delete all attendance records stored in this browser?')){
-  attendance=[];save();render();
-  setMsg('scanStatus','Attendance records cleared.');
- }
+document.getElementById("stopBtn").addEventListener("click", async () => {
+  if (scanner && scanning) {
+    try {
+      await scanner.stop();
+      await scanner.clear();
+    } catch {}
+    scanning = false;
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("stopBtn").disabled = true;
+    message("scanStatus", "Camera stopped.");
+  }
 });
 
 render();
