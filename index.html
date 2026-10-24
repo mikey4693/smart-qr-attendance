@@ -246,12 +246,55 @@ function decodeCandidates(raw){
 }
 
 function findStudent(raw){
- const candidates=decodeCandidates(raw);
- const direct=students.find(st=>candidates.some(c=>norm(c)===norm(st.reg)));
- if(direct)return direct;
- const mappedReg=candidates.map(c=>qrMappings[norm(c)]).find(Boolean);
- if(mappedReg)return students.find(st=>norm(st.reg)===norm(mappedReg))||null;
- return null;
+const QR_TO_REG_OFFSET = 2117260039871;
+
+function findStudent(raw) {
+    const candidates = decodeCandidates(raw);
+
+    // 1. Check whether the QR already contains a register number
+    const direct = students.find(st =>
+        candidates.some(c => norm(c) === norm(st.reg))
+    );
+
+    if (direct) return direct;
+
+    // 2. Check manually saved QR mappings first
+    const mappedReg = candidates
+        .map(c => qrMappings[norm(c)])
+        .find(Boolean);
+
+    if (mappedReg) {
+        const mappedStudent = students.find(
+            st => norm(st.reg) === norm(mappedReg)
+        );
+
+        if (mappedStudent) return mappedStudent;
+    }
+
+    // 3. Decode the college QR ID and calculate the register number
+    for (const candidate of candidates) {
+        if (/^\d+$/.test(candidate)) {
+            const qrId = Number(candidate);
+
+            // Prevent unsafe or invalid numeric values
+            if (!Number.isSafeInteger(qrId) || qrId <= 0) continue;
+
+            const calculatedReg = String(
+                qrId + QR_TO_REG_OFFSET
+            );
+
+            // Match against the imported student list
+            const student = students.find(
+                st => norm(st.reg) === norm(calculatedReg)
+            );
+
+            if (student) return student;
+        }
+    }
+
+    // 4. No matching student found
+    return null;
+}
 }
 
 document.getElementById('testAutoBtn').addEventListener('click',async()=>{
