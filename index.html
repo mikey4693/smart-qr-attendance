@@ -213,57 +213,178 @@ function setStatus(id, message, type="") {
 }
 
 function findStudentByRegister(value) {
-    return students.find(s => norm(s.registerNumber) === norm(value)) || null;
+    const target = String(value ?? "").trim();
+
+    return students.find(s =>
+        String(s.registerNumber ?? "").trim() === target
+    ) || null;
 }
 
 function findStudentByQRID(value) {
-    return students.find(s => norm(s.qrId) === norm(value)) || null;
+    const target = String(value ?? "").trim();
+
+    return students.find(s =>
+        String(s.qrId ?? "").trim() === target
+    ) || null;
 }
 
 /* ======================================================
-   QR MATCHING — preserve the original offset formula
+   CORRECTED QR MATCHING
+   Supports:
+   - Full college QR verification URLs
+   - Base64 QR IDs such as MTA1MDk=
+   - Numeric QR IDs such as 10509
+   - Direct register numbers
+   - Saved manual QR mappings
+   - The original QR-to-register-number offset
    ====================================================== */
 
 function identifyStudent(qrText) {
     const raw = String(qrText ?? "").trim();
 
-    // First check manually saved QR mappings.
-    if (Object.prototype.hasOwnProperty.call(qrMappings, raw)) {
-        const mapped = findStudentByRegister(qrMappings[raw]);
-        if (mapped) return mapped;
+    if (!raw) return null;
+
+    // Normalize mapping keys without changing the original data.
+    const mappingKeys = [
+        raw,
+        raw.replace(/\/+$/, "")
+    ];
+
+    // 1. Check saved mappings using the complete scanned value.
+    for (const key of mappingKeys) {
+        if (Object.prototype.hasOwnProperty.call(qrMappings, key)) {
+            const mapped = findStudentByRegister(qrMappings[key]);
+            if (mapped) return mapped;
+        }
     }
 
-    // Check whether the entire QR text is a saved QR ID or register number.
+    // 2. Check direct QR ID or register-number matches.
     let student = findStudentByQRID(raw);
     if (student) return student;
 
     student = findStudentByRegister(raw);
     if (student) return student;
 
-    // Extract numeric tokens from QR content, including URLs.
-    const tokens = [...new Set(raw.match(/\d+/g) || [])];
+    /*
+     * 3. Collect possible QR ID values.
+     * Do not use numeric tokens from the URL before decoding
+     * the final Base64 segment: a URL may contain unrelated numbers.
+     */
+    const candidates = [];
 
-    for (const token of tokens) {
-        // Direct QR ID matching.
-        student = findStudentByQRID(token);
+    function addCandidate(value) {
+        const v = String(value ?? "").trim();
+        if (v && !candidates.includes(v)) {
+            candidates.push(v);
+        }
+    }
+
+    addCandidate(raw);
+
+    try {
+        const url = new URL(raw);
+
+        // Decode the final path segment.
+        const segments = url.pathname.split("/").filter(Boolean);
+        const lastSegment = segments[segments.length - 1];
+
+        if (lastSegment) {
+            addCandidate(lastSegment);
+
+            // URL-decode first, then try Base64.
+            let pathValue = lastSegment;
+
+            try {
+                pathValue = decodeURIComponent(lastSegment);
+                addCandidate(pathValue);
+            } catch {}
+
+            try {
+                const decoded = atob(pathValue).trim();
+                addCandidate(decoded);
+            } catch {}
+
+            // Handle Base64 values with URL-safe characters.
+            try {
+                const base64 = pathValue
+                    .replace(/-/g, "+")
+                    .replace(/_/g, "/");
+
+                const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
+                const decoded = atob(padded).trim();
+
+                addCandidate(decoded);
+            } catch {}
+        }
+
+        // Also support query parameters containing IDs.
+        for (const [, value] of url.searchParams.entries()) {
+            addCandidate(value);
+
+            try {
+                addCandidate(atob(value).trim());
+            } catch {}
+        }
+
+    } catch {
+        // The scanned value may be Base64 text instead of a URL.
+        try {
+            addCandidate(atob(raw).trim());
+        } catch {}
+
+        // Support URL-safe Base64 text.
+        try {
+            const base64 = raw
+                .replace(/-/g, "+")
+                .replace(/_/g, "/");
+
+            const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
+            addCandidate(atob(padded).trim());
+        } catch {}
+    }
+
+    // 4. Test decoded candidates against the student database.
+    for (const candidate of candidates) {
+        student = findStudentByQRID(candidate);
         if (student) return student;
 
-        // Direct register-number matching.
-        student = findStudentByRegister(token);
+        student = findStudentByRegister(candidate);
         if (student) return student;
 
-        // Apply the original formula using exact integer arithmetic.
+        // Try saved mappings for both raw and decoded QR values.
+        if (Object.prototype.hasOwnProperty.call(qrMappings, candidate)) {
+            student = findStudentByRegister(qrMappings[candidate]);
+            if (student) return student;
+        }
+    }
+
+    /*
+     * 5. Apply the offset only to numeric candidates.
+     * BigInt avoids precision loss for long register numbers.
+     */
+    for (const candidate of candidates) {
+        if (!/^\d+$/.test(candidate)) continue;
+
+        // Direct QR ID lookup has already been attempted above.
         try {
             const calculated = (
-                BigInt(token) + BigInt(QR_TO_REG_OFFSET)
+                BigInt(candidate) + BigInt(QR_TO_REG_OFFSET)
             ).toString();
 
             student = findStudentByRegister(calculated);
             if (student) return student;
         } catch (error) {
-            console.warn("Could not calculate register number:", error);
+            console.warn("QR number conversion failed:", error);
         }
     }
+
+    console.warn("QR student match failed:", {
+        scannedValue: raw,
+        decodedCandidates: candidates,
+        offset: QR_TO_REG_OFFSET,
+        studentCount: students.length,
+        sampleStudent: students[0] || null
+    });
 
     return null;
 }
@@ -586,10 +707,11 @@ async function startQRScanner() {
             {facingMode:"environment"},
             {fps:12,qrbox:{width:240,height:240}},
             async decodedText => {
-                console.log("SCANNED QR CONTENT:", decodedText);
-                alert("Scanned QR content:\n" + decodedText);
                 if (qrBusy) return;
+
                 qrBusy = true;
+
+                console.log("SCANNED QR CONTENT:", decodedText);
 
                 await stopQRScanner();
 
@@ -597,16 +719,22 @@ async function startQRScanner() {
 
                 if (!student) {
                     console.log("Unmatched QR content:", decodedText);
+
                     setStatus(
                         "qrStatus",
-                        "QR scanned, but no matching student was found. Check the QR value and CSV.",
+                        "Student not found. Scanned value: " +
+                        decodedText +
+                        ". Check the CSV register number and QR ID.",
                         "error"
                     );
+
                     qrBusy = false;
                     return;
                 }
 
                 pendingFaceStudent = student;
+
+                // Save the full scanned QR value as a manual mapping.
                 qrMappings[String(decodedText).trim()] = student.registerNumber;
                 store(MAPPINGS_KEY, qrMappings);
 
@@ -648,7 +776,11 @@ async function startQRScanner() {
 
 async function stopQRScanner() {
     if (qrScanner && qrRunning) {
-        try { await qrScanner.stop(); } catch (error) { console.warn(error); }
+        try {
+            await qrScanner.stop();
+        } catch (error) {
+            console.warn(error);
+        }
     }
 
     qrRunning = false;
@@ -811,7 +943,6 @@ async function processFaceMatch(descriptor) {
             "success"
         );
 
-        // Require multiple matching frames to reduce accidental matches.
         if (consecutiveMatches >= 2) {
             faceLoopRunning = false;
 
@@ -994,7 +1125,10 @@ function renderAttendance() {
     const body = document.getElementById("attendanceTable");
     const filter = document.getElementById("attendanceDate").value;
 
-    let list = attendance.filter(a => !filter || a.date === filter).slice().reverse();
+    const list = attendance
+        .filter(a => !filter || a.date === filter)
+        .slice()
+        .reverse();
 
     body.innerHTML = list.length ? list.map(a => `<tr>
         <td>${esc(a.date)}</td>
