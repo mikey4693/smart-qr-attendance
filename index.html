@@ -1083,6 +1083,49 @@ function extractNumericCandidates(qrText) {
 function identifyStudent(qrText) {
     const raw = String(qrText || "").trim();
 
+    // 1. Check an existing manual QR mapping.
+    if (qrMappings[raw]) {
+        const mappedStudent = students.find(
+            s => String(s.registerNumber).trim() ===
+                 String(qrMappings[raw]).trim()
+        );
+
+        if (mappedStudent) return mappedStudent;
+    }
+
+    // 2. Extract the QR ID from the scanned content.
+    const numbers = raw.match(/\d+/g) || [];
+
+    for (const number of numbers) {
+        // Check if QR ID is already stored in the CSV.
+        const byQR = students.find(
+            s => String(s.qrId || "").trim() === number
+        );
+
+        if (byQR) return byQR;
+
+        // 3. Apply your original formula.
+        const calculatedRegister =
+            (BigInt(number) + BigInt(QR_TO_REG_OFFSET)).toString();
+
+        const byCalculatedRegister = students.find(
+            s => String(s.registerNumber).trim() ===
+                 calculatedRegister
+        );
+
+        if (byCalculatedRegister) return byCalculatedRegister;
+
+        // 4. Also check whether the QR directly contains a register number.
+        const byRegister = students.find(
+            s => String(s.registerNumber).trim() === number
+        );
+
+        if (byRegister) return byRegister;
+    }
+
+    return null;
+}
+
     // 1. Previously saved manual QR mapping.
     if (qrMappings[raw]) {
         const mapped =
