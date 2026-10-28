@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart QR Attendance - Face Test</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      color: #172033;
+    }
+
+    .container {
+      max-width: 850px;
+      margin: auto;
+    }
+
+    h1 {
+      text-align: center;
+      color: #1746a2;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #64748b;
+      margin-bottom: 25px;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 14px;
+      box-shadow: 0 3px 12px #00000012;
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 20px;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin: 14px 0 7px;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 5px;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+
+    input {
+      border: 1px solid #cbd5e1;
+    }
+
+    button {
+      border: none;
+      background: #1746a2;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button.secondary {
+      background: #475569;
+    }
+
+    button.danger {
+      background: #b91c1c;
+    }
+
+    .preview {
+      width: 100%;
+      max-width: 420px;
+      display: block;
+      margin: 15px auto;
+      border-radius: 12px;
+      background: #e2e8f0;
+    }
+
+    video {
+      width: 100%;
+      max-width: 420px;
+      display: block;
+      margin: 15px auto;
+      background: #0f172a;
+      border-radius: 12px;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      background: #e2e8f0;
+      margin-top: 15px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .success {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .small {
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <h1>Smart QR Attendance</h1>
+  <p class="subtitle">Face Recognition Testing Prototype</p>
+
+  <div class="card">
+    <h2>Step 1: Load AI Models</h2>
+    <p class="small">
+      The face-recognition models must load before testing.
+      An internet connection is required.
+    </p>
+    <button id="loadBtn" onclick="loadModels()">Load Face Recognition AI</button>
+    <div id="modelStatus" class="status">
+      AI models have not been loaded yet.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Step 2: Register Reference Photo</h2>
+
+    <label for="studentName">Student name</label>
+    <input id="studentName" type="text"
+           placeholder="Enter student name">
+
+    <label for="regNumber">Register number</label>
+    <input id="regNumber" type="text"
+           placeholder="Enter register number">
+
+    <label for="referenceFile">Upload a consented reference photo</label>
+    <input id="referenceFile" type="file"
+           accept="image/*">
+
+    <img id="referencePreview"
+         class="preview hidden"
+         alt="Reference photo preview">
+
+    <button id="registerBtn"
+            onclick="registerFace()" disabled>
+      Register Reference Face
+    </button>
+
+    <div id="registerStatus" class="status">
+      No reference face registered.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Step 3: Capture Live Face</h2>
+
+    <button id="startBtn"
+            onclick="startCamera()" disabled>
+      Open Laptop Webcam
+    </button>
+
+    <video id="webcam"
+           autoplay
+           muted
+           playsinline></video>
+
+    <button id="compareBtn"
+            onclick="compareFaces()" disabled>
+      Compare Faces
+    </button>
+
+    <button class="secondary"
+            onclick="stopCamera()">
+      Stop Webcam
+    </button>
+
+    <div id="matchStatus" class="status">
+      Register a reference face and open the webcam to begin.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Step 4: Reset Test</h2>
+    <p class="small">
+      This clears the registered face descriptor from this page's
+      memory. It does not delete copies of files you selected
+      from your computer.
+    </p>
+    <button class="danger" onclick="resetTest()">
+      Clear Test Data
+    </button>
+  </div>
+
+  <p class="small">
+    Privacy: This prototype calculates face descriptors in your
+    browser. It does not intentionally upload your photos to a
+    server. The AI library and model files are downloaded from
+    their hosting servers. Use only photos with permission.
+  </p>
+
+  <p class="small">
+    Important: A face match alone does not prove that a live person
+    is present. This prototype does not include liveness detection
+    and must not be used as the sole basis for official attendance.
+  </p>
+
+</div>
+
+<script>
+  const MODEL_URL =
+    "https://vladmandic.github.io/face-api/model/";
+
+  let modelsLoaded = false;
+  let referenceDescriptor = null;
+  let cameraStream = null;
+
+  const studentName = document.getElementById("studentName");
+  const regNumber = document.getElementById("regNumber");
+  const referenceFile = document.getElementById("referenceFile");
+  const referencePreview = document.getElementById("referencePreview");
+  const webcam = document.getElementById("webcam");
+
+  const loadBtn = document.getElementById("loadBtn");
+  const registerBtn = document.getElementById("registerBtn");
+  const startBtn = document.getElementById("startBtn");
+  const compareBtn = document.getElementById("compareBtn");
+
+  function setStatus(id, message, type = "") {
+    const element = document.getElementById(id);
+    element.className = "status" + (type ? " " + type : "");
+    element.textContent = message;
+  }
+
+  function updateButtons() {
+    registerBtn.disabled =
+      !modelsLoaded || !referenceFile.files.length;
+
+    startBtn.disabled = !modelsLoaded;
+
+    compareBtn.disabled =
+      !modelsLoaded || !referenceDescriptor || !cameraStream;
+  }
+
+  async function loadModels() {
+    loadBtn.disabled = true;
+
+    setStatus("modelStatus", "Loading AI models... Please wait.");
+
+    try {
+      await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+
+      modelsLoaded = true;
+
+      setStatus(
+        "modelStatus",
+        "AI models loaded successfully! You can register a face.",
+        "success"
+      );
+    } catch (error) {
+      console.error(error);
+
+      setStatus(
+        "modelStatus",
+        "Could not load AI models. Check your internet connection and reload the page. Details: " +
+        error.message,
+        "error"
+      );
+    } finally {
+      loadBtn.disabled = modelsLoaded;
+      updateButtons();
+    }
+  }
+
+  referenceFile.addEventListener("change", () => {
+    const file = referenceFile.files[0];
+
+    referenceDescriptor = null;
+    updateButtons();
+
+    if (!file) {
+      referencePreview.classList.add("hidden");
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setStatus("registerStatus", "Please select an image file.", "error");
+      referenceFile.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      referencePreview.src = reader.result;
+      referencePreview.classList.remove("hidden");
+      setStatus(
+        "registerStatus",
+        "Photo selected. Click Register Reference Face."
+      );
+    };
+
+    reader.readAsDataURL(file);
+  });
+
+  async function registerFace() {
+    if (!modelsLoaded) {
+      setStatus("registerStatus", "Load the AI models first.", "error");
+      return;
+    }
+
+    if (!studentName.value.trim() || !regNumber.value.trim()) {
+      setStatus(
+        "registerStatus",
+        "Enter the student's name and register number.",
+        "error"
+      );
+      return;
+    }
+
+    const file = referenceFile.files[0];
+
+    if (!file) {
+      setStatus("registerStatus", "Choose a reference photo first.", "error");
+      return;
+    }
+
+    registerBtn.disabled = true;
+
+    try {
+      setStatus("registerStatus", "Detecting face in reference photo...");
+
+      const image = await faceapi.bufferToImage(file);
+
+      const result = await faceapi
+        .detectSingleFace(image, new faceapi.SsdMobilenetv1Options())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!result) {
+        referenceDescriptor = null;
+
+        setStatus(
+          "registerStatus",
+          "No face detected. Try a clear, front-facing photo with good lighting.",
+          "error"
+        );
+        return;
+      }
+
+      referenceDescriptor = result.descriptor;
+
+      setStatus(
+        "registerStatus",
+        "Reference face registered in page memory for " +
+        studentName.value.trim() + " (" + regNumber.value.trim() + ").",
+        "success"
+      );
+
+      setStatus(
+        "matchStatus",
+        "Reference face ready. Open the webcam to compare."
+      );
+
+    } catch (error) {
+      console.error(error);
+
+      setStatus(
+        "registerStatus",
+        "Could not process the photo. Try another image. Details: " +
+        error.message,
+        "error"
+      );
+    } finally {
+      updateButtons();
+    }
+  }
+
+  async function startCamera() {
+    try {
+      stopCamera();
+
+      if (!navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia) {
+        throw new Error(
+          "Camera access requires HTTPS or localhost and a supported browser."
+        );
+      }
+
+      setStatus("matchStatus", "Requesting webcam permission...");
+
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user"
+        },
+        audio: false
+      });
+
+      webcam.srcObject = cameraStream;
+      await webcam.play();
+
+      setStatus(
+        "matchStatus",
+        "Webcam is ready. Look directly at the camera, then compare.",
+        "success"
+      );
+
+    } catch (error) {
+      console.error(error);
+      cameraStream = null;
+
+      setStatus(
+        "matchStatus",
+        "Could not open webcam. Allow camera permission and use the HTTPS GitHub Pages website. Details: " +
+        error.message,
+        "error"
+      );
+    }
+
+    updateButtons();
+  }
+
+  async function compareFaces() {
+    if (!referenceDescriptor || !cameraStream) {
+      setStatus(
+        "matchStatus",
+        "Register a reference face and open the webcam first.",
+        "error"
+      );
+      return;
+    }
+
+    compareBtn.disabled = true;
+
+    try {
+      setStatus("matchStatus", "Checking live face...");
+
+      const result = await faceapi
+        .detectSingleFace(webcam, new faceapi.SsdMobilenetv1Options())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!result) {
+        setStatus(
+          "matchStatus",
+          "No face detected. Adjust the lighting and face the camera.",
+          "error"
+        );
+        return;
+      }
+
+      const distance = faceapi.euclideanDistance(
+        referenceDescriptor,
+        result.descriptor
+      );
+
+      // Initial demo threshold only; not security-certified.
+      const threshold = 0.50;
+
+      if (distance < threshold) {
+        setStatus(
+          "matchStatus",
+          "FACE MATCHED (prototype result)\nStudent: " +
+          studentName.value.trim() +
+          "\nRegister number: " + regNumber.value.trim() +
+          "\nDistance: " + distance.toFixed(3) +
+          "\nThis is only a similarity result, not proof of liveness.",
+          "success"
+        );
+      } else {
+        setStatus(
+          "matchStatus",
+          "FACE NOT MATCHED\nThe captured face differs from the reference.\nDistance: " +
+          distance.toFixed(3) +
+          "\nTry again with a clear, front-facing image.",
+          "error"
+        );
+      }
+
+    } catch (error) {
+      console.error(error);
+
+      setStatus(
+        "matchStatus",
+        "Comparison failed. Details: " + error.message,
+        "error"
+      );
+    } finally {
+      updateButtons();
+    }
+  }
+
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+
+    cameraStream = null;
+    webcam.srcObject = null;
+
+    updateButtons();
+  }
+
+  function resetTest() {
+    stopCamera();
+
+    referenceDescriptor = null;
+    studentName.value = "";
+    regNumber.value = "";
+    referenceFile.value = "";
+    referencePreview.removeAttribute("src");
+    referencePreview.classList.add("hidden");
+
+    setStatus("registerStatus", "No reference face registered.");
+    setStatus("matchStatus", "Test reset. Register a face to begin.");
+
+    updateButtons();
+  }
+
+  window.addEventListener("beforeunload", stopCamera);
+</script>
+
+</body>
+</html>
