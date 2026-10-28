@@ -2,688 +2,285 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Smart QR Attendance</title>
 
-<!-- QR Scanner -->
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
-<!-- Face Recognition -->
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
 
 <style>
-:root {
-    --primary: #2563eb;
-    --green: #16a34a;
-    --red: #dc2626;
-    --dark: #172033;
-    --light: #f3f6fb;
-}
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: var(--light);
-    color: var(--dark);
-}
-
-header {
-    background: linear-gradient(135deg, #172554, #2563eb);
-    color: white;
-    padding: 24px 16px;
-    text-align: center;
-}
-
-header h1 {
-    margin: 0 0 8px;
-}
-
-header p {
-    margin: 0;
-    opacity: 0.9;
-}
-
-.container {
-    max-width: 1100px;
-    margin: auto;
-    padding: 16px;
-}
-
-.card {
-    background: white;
-    padding: 18px;
-    margin-bottom: 16px;
-    border-radius: 14px;
-    box-shadow: 0 3px 12px rgba(0,0,0,.07);
-}
-
-h2 {
-    margin-top: 0;
-    font-size: 21px;
-}
-
-button,
-.button {
-    border: none;
-    background: var(--primary);
-    color: white;
-    padding: 11px 15px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: bold;
-    margin: 4px 2px;
-}
-
-button:disabled {
-    opacity: .5;
-    cursor: not-allowed;
-}
-
-button.green {
-    background: var(--green);
-}
-
-button.red {
-    background: var(--red);
-}
-
-button.gray {
-    background: #475569;
-}
-
-input,
-select {
-    width: 100%;
-    padding: 11px;
-    margin: 6px 0 12px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    font-size: 15px;
-    background: white;
-}
-
-label {
-    font-weight: bold;
-    display: block;
-    margin-top: 8px;
-}
-
-.status {
-    background: #eff6ff;
-    border-left: 4px solid var(--primary);
-    padding: 12px;
-    border-radius: 7px;
-    margin-top: 12px;
-    overflow-wrap: anywhere;
-}
-
-.status.success {
-    background: #f0fdf4;
-    border-color: var(--green);
-}
-
-.status.error {
-    background: #fef2f2;
-    border-color: var(--red);
-}
-
-.status.warning {
-    background: #fffbeb;
-    border-color: #d97706;
-}
-
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 16px;
-}
-
-#qr-reader {
-    width: 100%;
-    max-width: 500px;
-    margin: 12px auto;
-    overflow: hidden;
-}
-
-#faceVideo {
-    width: 100%;
-    max-width: 500px;
-    background: #111827;
-    border-radius: 10px;
-    display: block;
-    margin: 12px auto;
-    transform: scaleX(-1);
-}
-
-.small {
-    color: #64748b;
-    font-size: 13px;
-    line-height: 1.5;
-}
-
-.stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-bottom: 16px;
-}
-
-.stat {
-    background: white;
-    padding: 15px 8px;
-    border-radius: 12px;
-    text-align: center;
-    box-shadow: 0 2px 8px #0000000b;
-}
-
-.stat strong {
-    display: block;
-    font-size: 24px;
-    color: var(--primary);
-}
-
-.stat span {
-    font-size: 12px;
-    color: #64748b;
-}
-
-.table-wrap {
-    width: 100%;
-    overflow-x: auto;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 620px;
-}
-
-th, td {
-    text-align: left;
-    padding: 11px;
-    border-bottom: 1px solid #e2e8f0;
-    font-size: 13px;
-}
-
-th {
-    background: #eff6ff;
-}
-
-.hidden {
-    display: none !important;
-}
-
-footer {
-    text-align: center;
-    padding: 20px;
-    color: #64748b;
-    font-size: 12px;
-}
-
-.progress {
-    height: 6px;
-    background: #e2e8f0;
-    border-radius: 6px;
-    overflow: hidden;
-    margin-top: 10px;
-}
-
-.progress div {
-    width: 0;
-    height: 100%;
-    background: var(--green);
-    transition: width .2s;
-}
-
-@media(max-width:480px) {
-    .container {
-        padding: 10px;
-    }
-
-    .card {
-        padding: 14px;
-    }
-
-    .stats {
-        gap: 6px;
-    }
-
-    .stat strong {
-        font-size: 20px;
-    }
-}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#172033}
+header{background:linear-gradient(135deg,#172554,#2563eb);color:white;text-align:center;padding:24px 12px}
+.container{max-width:1050px;margin:auto;padding:15px}
+.card{background:white;padding:18px;border-radius:15px;margin-bottom:16px;box-shadow:0 3px 12px #0000000b}
+h2{margin-top:0}
+button{border:0;border-radius:8px;padding:11px 14px;margin:4px 2px;background:#2563eb;color:white;font-weight:bold;cursor:pointer}
+button.green{background:#16a34a}
+button.gray{background:#475569}
+button.red{background:#dc2626}
+button:disabled{opacity:.55}
+input,select{display:block;width:100%;padding:11px;margin:7px 0 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px}
+label{font-weight:bold}
+.status{padding:12px;margin-top:12px;border-left:4px solid #2563eb;background:#eff6ff;border-radius:7px;overflow-wrap:anywhere}
+.success{background:#f0fdf4;border-color:#16a34a}
+.error{background:#fef2f2;border-color:#dc2626}
+.warning{background:#fffbeb;border-color:#d97706}
+.small{font-size:13px;color:#64748b;line-height:1.5}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:15px}
+.stat{background:white;border-radius:10px;padding:14px 5px;text-align:center}
+.stat strong{display:block;font-size:23px;color:#2563eb}
+.stat span{font-size:12px;color:#64748b}
+#qr-reader{max-width:500px;width:100%;margin:12px auto}
+#faceVideo{display:block;width:100%;max-width:500px;margin:12px auto;background:#111827;border-radius:10px;transform:scaleX(-1)}
+.table-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:580px}
+th,td{text-align:left;padding:10px;border-bottom:1px solid #e2e8f0;font-size:13px}
+th{background:#eff6ff}
+.hidden{display:none!important}
+.progress{height:6px;background:#e2e8f0;margin-top:10px;border-radius:5px}
+#modelProgress{height:100%;width:0;background:#16a34a}
+@media(max-width:480px){.container{padding:10px}.card{padding:14px}.stats strong{font-size:20px}}
 </style>
 </head>
 
 <body>
-
 <header>
-    <h1>📷 Smart QR Attendance</h1>
-    <p>QR Scanning + Ultra-Fast Face Verification</p>
+<h1>📷 Smart QR Attendance</h1>
+<p>QR Scanning + Fast Face Verification</p>
 </header>
 
-<div class="container">
+<main class="container">
 
-    <div class="stats">
-        <div class="stat">
-            <strong id="totalStudents">0</strong>
-            <span>Students</span>
-        </div>
-
-        <div class="stat">
-            <strong id="todayAttendance">0</strong>
-            <span>Today's Attendance</span>
-        </div>
-
-        <div class="stat">
-            <strong id="registeredFaces">0</strong>
-            <span>Registered Faces</span>
-        </div>
-    </div>
-
-    <!-- AI MODELS -->
-    <section class="card">
-        <h2>⚙️ Recognition System</h2>
-
-        <p class="small">
-            Load the AI models once when you open the website.
-            Keep the internet connected until the models finish loading.
-        </p>
-
-        <button id="loadModelsBtn" onclick="loadModels()">
-            Load Face AI
-        </button>
-
-        <button class="gray" onclick="stopAllCameras()">
-            Stop All Cameras
-        </button>
-
-        <div id="modelStatus" class="status">
-            AI models have not been loaded yet.
-        </div>
-
-        <div class="progress">
-            <div id="modelProgress"></div>
-        </div>
-    </section>
-
-    <!-- ATTENDANCE SCANNER -->
-    <section class="card">
-        <h2>📷 Scan Student QR</h2>
-
-        <p class="small">
-            Scan a student's ID-card QR code. The QR camera will stop
-            automatically before the face camera opens.
-        </p>
-
-        <button id="startQrBtn" onclick="startQRScanner()">
-            Start QR Scanner
-        </button>
-
-        <button class="gray" onclick="stopQRScanner()">
-            Stop QR Scanner
-        </button>
-
-        <div id="qr-reader"></div>
-
-        <div id="qrStatus" class="status">
-            Waiting for QR scan.
-        </div>
-
-        <div id="pendingStudentBox" class="status hidden"></div>
-    </section>
-
-    <!-- FACE CAMERA -->
-    <section class="card">
-        <h2>👤 Automatic Face Verification</h2>
-
-        <p class="small">
-            After QR scanning, the camera will open automatically
-            if the student has a registered face.
-        </p>
-
-        <video id="faceVideo" autoplay muted playsinline></video>
-
-        <button id="startFaceBtn" onclick="startFaceCamera()">
-            Start Face Camera
-        </button>
-
-        <button class="green" id="verifyBtn" onclick="verifyFaceManually()" disabled>
-            Verify Face Manually
-        </button>
-
-        <button class="gray" onclick="stopFaceCamera()">
-            Stop Face Camera
-        </button>
-
-        <div id="faceStatus" class="status">
-            Waiting for a student.
-        </div>
-    </section>
-
-    <!-- STUDENT MANAGEMENT -->
-    <section class="card">
-        <h2>🎓 Student Database</h2>
-
-        <label for="csvFile">Import student list from CSV</label>
-        <input type="file" id="csvFile" accept=".csv,text/csv">
-
-        <button onclick="importCSV()">Import CSV</button>
-
-        <p class="small">
-            Recommended CSV columns:
-            <b>RegisterNumber, Name, Department, Badge, QRID</b>.
-            Column names are flexible. Existing students are updated
-            by register number rather than duplicated.
-        </p>
-
-        <hr>
-
-        <h3>Add or Update Student</h3>
-
-        <label for="regInput">Register Number</label>
-        <input id="regInput" placeholder="Enter register number">
-
-        <label for="nameInput">Student Name</label>
-        <input id="nameInput" placeholder="Enter student name">
-
-        <label for="deptInput">Department / Section</label>
-        <input id="deptInput" placeholder="Example: ECE G">
-
-        <label for="badgeInput">Badge</label>
-        <input id="badgeInput" placeholder="Optional">
-
-        <label for="qrInput">QR ID (optional)</label>
-        <input id="qrInput" placeholder="Enter QR ID if available">
-
-        <button class="green" onclick="saveStudent()">Save Student</button>
-
-        <button class="gray" onclick="clearStudentForm()">Clear Form</button>
-
-        <hr>
-
-        <label for="faceStudentSelect">Select student for face registration</label>
-        <select id="faceStudentSelect">
-            <option value="">Choose a student</option>
-        </select>
-
-        <button onclick="registerStudentFace()">Register / Update Face</button>
-
-        <p class="small">
-            Register each student's face with their permission.
-            Face descriptors are stored in this browser's local storage.
-        </p>
-
-        <hr>
-
-        <label for="searchStudent">Search students</label>
-        <input id="searchStudent" placeholder="Search name or register number"
-               oninput="renderStudents()">
-
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Register Number</th>
-                        <th>Name</th>
-                        <th>Department</th>
-                        <th>Face</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="studentTable"></tbody>
-            </table>
-        </div>
-    </section>
-
-    <!-- ATTENDANCE RECORDS -->
-    <section class="card">
-        <h2>📋 Attendance Records</h2>
-
-        <label for="attendanceDate">Filter by date</label>
-        <input type="date" id="attendanceDate" onchange="renderAttendance()">
-
-        <button onclick="exportAttendance()">Export Attendance CSV</button>
-
-        <button class="gray" onclick="exportStudents()">Export Students CSV</button>
-
-        <button class="gray" onclick="clearDateFilter()">Show All Dates</button>
-
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Register Number</th>
-                        <th>Name</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="attendanceTable"></tbody>
-            </table>
-        </div>
-
-        <p class="small">
-            Attendance is saved locally in this browser.
-            Export your records regularly as a backup.
-        </p>
-    </section>
-
+<div class="stats">
+<div class="stat"><strong id="totalStudents">0</strong><span>Students</span></div>
+<div class="stat"><strong id="todayAttendance">0</strong><span>Today's Attendance</span></div>
+<div class="stat"><strong id="registeredFaces">0</strong><span>Registered Faces</span></div>
 </div>
 
-<footer>
-    Smart QR Attendance Prototype
-</footer>
+<section class="card">
+<h2>⚙️ Recognition System</h2>
+<p class="small">Load AI models once. Keep the internet connected while they load.</p>
+<button id="loadModelsBtn" onclick="loadModels()">Load Face AI</button>
+<button class="gray" onclick="stopAllCameras()">Stop All Cameras</button>
+<div id="modelStatus" class="status">AI models not loaded.</div>
+<div class="progress"><div id="modelProgress"></div></div>
+</section>
+
+<section class="card">
+<h2>📷 Scan Student QR</h2>
+<p class="small">Scan the ID-card QR. The QR camera stops before face verification starts.</p>
+<button id="startQrBtn" onclick="startQRScanner()">Start QR Scanner</button>
+<button class="gray" onclick="stopQRScanner()">Stop QR Scanner</button>
+<div id="qr-reader"></div>
+<div id="qrStatus" class="status">Waiting for QR scan.</div>
+<div id="pendingStudentBox" class="status hidden"></div>
+</section>
+
+<section class="card">
+<h2>👤 Face Verification</h2>
+<p class="small">After a valid QR match, the face camera opens automatically.</p>
+<video id="faceVideo" autoplay muted playsinline></video>
+<button id="startFaceBtn" onclick="startFaceCamera()">Start Face Camera</button>
+<button class="green" id="verifyBtn" onclick="manualFaceAction()" disabled>Verify / Register Face</button>
+<button class="gray" onclick="stopFaceCamera()">Stop Face Camera</button>
+<div id="faceStatus" class="status">Waiting for a student.</div>
+</section>
+
+<section class="card">
+<h2>🎓 Student Database</h2>
+<label for="csvFile">Import student CSV</label>
+<input type="file" id="csvFile" accept=".csv,text/csv">
+<button onclick="importCSV()">Import CSV</button>
+<p class="small">Recommended headers: RegisterNumber, Name, Department, Badge, QRID. Register number and name are required.</p>
+
+<hr>
+<h3>Add / Update Student</h3>
+<label for="regInput">Register Number</label><input id="regInput" placeholder="Register number">
+<label for="nameInput">Student Name</label><input id="nameInput" placeholder="Name">
+<label for="deptInput">Department / Section</label><input id="deptInput" placeholder="ECE G">
+<label for="badgeInput">Badge</label><input id="badgeInput" placeholder="Optional">
+<label for="qrInput">QR ID</label><input id="qrInput" placeholder="Optional QR ID">
+<button class="green" onclick="saveStudent()">Save Student</button>
+<button class="gray" onclick="clearStudentForm()">Clear Form</button>
+
+<hr>
+<label for="faceStudentSelect">Select student for face registration</label>
+<select id="faceStudentSelect"><option value="">Choose a student</option></select>
+<button onclick="registerStudentFace()">Register / Update Face</button>
+<p class="small">Obtain permission before registering faces. Face descriptors remain in this browser.</p>
+
+<hr>
+<label for="searchStudent">Search students</label>
+<input id="searchStudent" placeholder="Search name or register number" oninput="renderStudents()">
+<div class="table-wrap">
+<table>
+<thead><tr><th>Register Number</th><th>Name</th><th>Department</th><th>Face</th><th>Actions</th></tr></thead>
+<tbody id="studentTable"></tbody>
+</table>
+</div>
+</section>
+
+<section class="card">
+<h2>📋 Attendance Records</h2>
+<label for="attendanceDate">Filter by date</label>
+<input type="date" id="attendanceDate" onchange="renderAttendance()">
+<button onclick="exportAttendance()">Export Attendance CSV</button>
+<button class="gray" onclick="exportStudents()">Export Students CSV</button>
+<button class="gray" onclick="clearDateFilter()">Show All Dates</button>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Date</th><th>Time</th><th>Register Number</th><th>Name</th><th>Status</th></tr></thead>
+<tbody id="attendanceTable"></tbody>
+</table>
+</div>
+<p class="small">Attendance is saved in this browser. Export backups regularly.</p>
+</section>
+
+</main>
 
 <script>
 "use strict";
 
-/* =========================================================
-   CONFIGURATION
-   ========================================================= */
-
-// Preserve the localStorage keys used by the previous prototype.
+/* Keep the existing prototype storage keys. */
 const STUDENTS_KEY = "smartqr_students_v2";
 const ATTENDANCE_KEY = "smartqr_attendance_v2";
 const MAPPINGS_KEY = "smartqr_qr_mappings_v1";
 const FACES_KEY = "smartqr_face_descriptors_v1";
 
-// QR ID/register number offset from the existing prototype.
-// Both addition and subtraction are checked against imported students.
+/* Original QR formula: QR ID + offset = register number. */
 const QR_TO_REG_OFFSET = 2117260029871;
 
-// Face matching threshold. Lower values are stricter.
-const FACE_MATCH_THRESHOLD = 0.50;
+const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
+const FACE_THRESHOLD = 0.50;
 
-// Tiny Face Detector settings for faster detection.
-const TINY_INPUT_SIZE = 160;
-const TINY_SCORE_THRESHOLD = 0.5;
-
-const MODEL_URL =
-    "https://vladmandic.github.io/face-api/model/";
-
-/* =========================================================
-   APPLICATION STATE
-   ========================================================= */
-
-let students = loadJSON(STUDENTS_KEY, []);
-let attendance = loadJSON(ATTENDANCE_KEY, []);
-let qrMappings = loadJSON(MAPPINGS_KEY, {});
-let faceDescriptors = loadJSON(FACES_KEY, {});
+let students = readJSON(STUDENTS_KEY, []);
+let attendance = readJSON(ATTENDANCE_KEY, []);
+let qrMappings = readJSON(MAPPINGS_KEY, {});
+let faceDescriptors = readJSON(FACES_KEY, {});
 
 let modelsLoaded = false;
 let qrScanner = null;
 let qrRunning = false;
 let qrBusy = false;
-
 let faceStream = null;
 let faceCameraRunning = false;
 let faceLoopRunning = false;
 let faceBusy = false;
-
 let pendingFaceStudent = null;
 let facePurpose = "attendance";
-let autoAttemptCount = 0;
-let consecutiveFaceMatches = 0;
-let lastFaceCheckTime = 0;
+let consecutiveMatches = 0;
 
-let currentStudentId = null;
-let currentQrText = "";
-
-/* =========================================================
-   GENERAL UTILITIES
-   ========================================================= */
-
-function loadJSON(key, fallback) {
+function readJSON(key, fallback) {
     try {
-        const raw = localStorage.getItem(key);
-        return raw ? JSON.parse(raw) : fallback;
-    } catch (error) {
-        console.error("Could not load", key, error);
+        const value = localStorage.getItem(key);
+        return value ? JSON.parse(value) : fallback;
+    } catch {
         return fallback;
     }
 }
 
-function saveJSON(key, value) {
+function store(key, value) {
     try {
         localStorage.setItem(key, JSON.stringify(value));
         return true;
     } catch (error) {
-        console.error("Could not save", key, error);
-
-        alert(
-            "The browser could not save the data. " +
-            "Storage may be full. Export your records as a backup."
-        );
-
+        console.error(error);
+        alert("Browser storage failed. Export a backup and check available storage.");
         return false;
     }
 }
 
-function saveStudents() {
-    saveJSON(STUDENTS_KEY, students);
-}
-
-function saveAttendance() {
-    saveJSON(ATTENDANCE_KEY, attendance);
-}
-
-function saveMappings() {
-    saveJSON(MAPPINGS_KEY, qrMappings);
-}
-
-function saveFaces() {
-    saveJSON(FACES_KEY, faceDescriptors);
-}
-
-function normalize(value) {
+function norm(value) {
     return String(value ?? "").trim().toLowerCase();
 }
 
-function escapeHTML(value) {
-    return String(value ?? "").replace(/[&<>"']/g, character => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;"
-    })[character]);
+function esc(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    })[c]);
 }
 
-function todayString() {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
+function today() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
-function timeString() {
-    return new Date().toLocaleTimeString();
+function setStatus(id, message, type="") {
+    const el = document.getElementById(id);
+    el.textContent = message;
+    el.className = "status" + (type ? " " + type : "");
 }
 
-function setStatus(id, message, type = "") {
-    const element = document.getElementById(id);
-
-    element.textContent = message;
-    element.className = "status" + (type ? " " + type : "");
+function findStudentByRegister(value) {
+    return students.find(s => norm(s.registerNumber) === norm(value)) || null;
 }
 
-function updateStats() {
-    document.getElementById("totalStudents").textContent = students.length;
-
-    const todayCount = new Set(
-        attendance
-            .filter(record => record.date === todayString())
-            .map(record => record.registerNumber)
-    ).size;
-
-    document.getElementById("todayAttendance").textContent = todayCount;
-
-    document.getElementById("registeredFaces").textContent =
-        Object.keys(faceDescriptors).length;
+function findStudentByQRID(value) {
+    return students.find(s => norm(s.qrId) === norm(value)) || null;
 }
 
-function persistAll() {
-    saveStudents();
-    saveAttendance();
-    saveMappings();
-    saveFaces();
-    refreshUI();
+/* ======================================================
+   QR MATCHING — preserve the original offset formula
+   ====================================================== */
+
+function identifyStudent(qrText) {
+    const raw = String(qrText ?? "").trim();
+
+    // First check manually saved QR mappings.
+    if (Object.prototype.hasOwnProperty.call(qrMappings, raw)) {
+        const mapped = findStudentByRegister(qrMappings[raw]);
+        if (mapped) return mapped;
+    }
+
+    // Check whether the entire QR text is a saved QR ID or register number.
+    let student = findStudentByQRID(raw);
+    if (student) return student;
+
+    student = findStudentByRegister(raw);
+    if (student) return student;
+
+    // Extract numeric tokens from QR content, including URLs.
+    const tokens = [...new Set(raw.match(/\d+/g) || [])];
+
+    for (const token of tokens) {
+        // Direct QR ID matching.
+        student = findStudentByQRID(token);
+        if (student) return student;
+
+        // Direct register-number matching.
+        student = findStudentByRegister(token);
+        if (student) return student;
+
+        // Apply the original formula using exact integer arithmetic.
+        try {
+            const calculated = (
+                BigInt(token) + BigInt(QR_TO_REG_OFFSET)
+            ).toString();
+
+            student = findStudentByRegister(calculated);
+            if (student) return student;
+        } catch (error) {
+            console.warn("Could not calculate register number:", error);
+        }
+    }
+
+    return null;
 }
 
-function refreshUI() {
-    renderStudents();
-    renderAttendance();
-    updateStudentSelect();
-    updateStats();
-}
-
-/* =========================================================
-   STUDENT DATABASE
-   ========================================================= */
-
-function findStudentByRegister(registerNumber) {
-    const target = normalize(registerNumber);
-
-    return students.find(student =>
-        normalize(student.registerNumber) === target
-    ) || null;
-}
-
-function findStudentByQRID(qrId) {
-    const target = normalize(qrId);
-
-    return students.find(student =>
-        normalize(student.qrId) === target
-    ) || null;
-}
+/* ======================================================
+   STUDENT MANAGEMENT
+   ====================================================== */
 
 function saveStudent() {
-    const registerNumber =
-        document.getElementById("regInput").value.trim();
-
-    const name =
-        document.getElementById("nameInput").value.trim();
-
-    const department =
-        document.getElementById("deptInput").value.trim();
-
-    const badge =
-        document.getElementById("badgeInput").value.trim();
-
-    const qrId =
-        document.getElementById("qrInput").value.trim();
+    const registerNumber = document.getElementById("regInput").value.trim();
+    const name = document.getElementById("nameInput").value.trim();
+    const department = document.getElementById("deptInput").value.trim();
+    const badge = document.getElementById("badgeInput").value.trim();
+    const qrId = document.getElementById("qrInput").value.trim();
 
     if (!registerNumber || !name) {
-        alert("Enter at least the register number and student name.");
+        alert("Register number and name are required.");
         return;
     }
 
@@ -693,638 +290,355 @@ function saveStudent() {
         existing.name = name;
         existing.department = department;
         existing.badge = badge;
-
-        if (qrId) {
-            existing.qrId = qrId;
-        }
-
-        if (currentStudentId === registerNumber) {
-            currentStudentId = registerNumber;
-        }
+        if (qrId) existing.qrId = qrId;
     } else {
-        students.push({
-            registerNumber,
-            name,
-            department,
-            badge,
-            qrId
-        });
+        students.push({registerNumber,name,department,badge,qrId});
     }
 
-    saveStudents();
+    store(STUDENTS_KEY, students);
     refreshUI();
     clearStudentForm();
-
     setStatus("qrStatus", "Student saved successfully.", "success");
 }
 
-function editStudent(registerNumber) {
-    const student = findStudentByRegister(registerNumber);
+function editStudent(reg) {
+    const s = findStudentByRegister(reg);
+    if (!s) return;
 
-    if (!student) return;
+    document.getElementById("regInput").value = s.registerNumber;
+    document.getElementById("nameInput").value = s.name;
+    document.getElementById("deptInput").value = s.department || "";
+    document.getElementById("badgeInput").value = s.badge || "";
+    document.getElementById("qrInput").value = s.qrId || "";
 
-    document.getElementById("regInput").value =
-        student.registerNumber;
-
-    document.getElementById("nameInput").value =
-        student.name;
-
-    document.getElementById("deptInput").value =
-        student.department || "";
-
-    document.getElementById("badgeInput").value =
-        student.badge || "";
-
-    document.getElementById("qrInput").value =
-        student.qrId || "";
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({top:0,behavior:"smooth"});
 }
 
-function clearStudentForm() {
-    ["regInput", "nameInput", "deptInput", "badgeInput", "qrInput"]
-        .forEach(id => {
-            document.getElementById(id).value = "";
-        });
-}
+function deleteStudent(reg) {
+    const s = findStudentByRegister(reg);
+    if (!s) return;
 
-function deleteStudent(registerNumber) {
-    const student = findStudentByRegister(registerNumber);
+    if (!confirm(`Delete ${s.name} (${s.registerNumber})?`)) return;
 
-    if (!student) return;
+    students = students.filter(x => norm(x.registerNumber) !== norm(reg));
+    delete faceDescriptors[reg];
 
-    if (!confirm(
-        `Delete ${student.name} (${student.registerNumber})?\n\n` +
-        "This also removes their saved face descriptor."
-    )) {
-        return;
-    }
-
-    students = students.filter(item =>
-        normalize(item.registerNumber) !== normalize(registerNumber)
-    );
-
-    delete faceDescriptors[registerNumber];
-
-    // Remove mappings pointing to this student.
     for (const key of Object.keys(qrMappings)) {
-        if (normalize(qrMappings[key]) === normalize(registerNumber)) {
-            delete qrMappings[key];
-        }
+        if (norm(qrMappings[key]) === norm(reg)) delete qrMappings[key];
     }
 
-    saveStudents();
-    saveFaces();
-    saveMappings();
+    store(STUDENTS_KEY, students);
+    store(FACES_KEY, faceDescriptors);
+    store(MAPPINGS_KEY, qrMappings);
     refreshUI();
 }
 
+function clearStudentForm() {
+    ["regInput","nameInput","deptInput","badgeInput","qrInput"].forEach(id => {
+        document.getElementById(id).value = "";
+    });
+}
+
 function renderStudents() {
-    const tbody = document.getElementById("studentTable");
-    const search = normalize(
-        document.getElementById("searchStudent").value
+    const body = document.getElementById("studentTable");
+    const query = norm(document.getElementById("searchStudent").value);
+
+    const list = students.filter(s =>
+        norm(s.registerNumber).includes(query) ||
+        norm(s.name).includes(query) ||
+        norm(s.department).includes(query)
     );
 
-    const filtered = students.filter(student =>
-        normalize(student.registerNumber).includes(search) ||
-        normalize(student.name).includes(search) ||
-        normalize(student.department).includes(search)
-    );
+    body.innerHTML = list.length ? list.map(s => {
+        const r = esc(s.registerNumber);
+        const hasFace = Array.isArray(faceDescriptors[s.registerNumber]);
 
-    if (!filtered.length) {
-        tbody.innerHTML =
-            '<tr><td colspan="5">No students found.</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = filtered.map(student => {
-        const register = escapeHTML(student.registerNumber);
-        const name = escapeHTML(student.name);
-        const department = escapeHTML(student.department || "-");
-
-        const hasFace =
-            Array.isArray(faceDescriptors[student.registerNumber]);
-
-        return `
-            <tr>
-                <td>${register}</td>
-                <td>${name}</td>
-                <td>${department}</td>
-                <td>${hasFace ? "✅ Registered" : "❌ Not registered"}</td>
-                <td>
-                    <button onclick="editStudent('${register}')">Edit</button>
-                    <button class="red"
-                        onclick="deleteStudent('${register}')">Delete</button>
-                </td>
-            </tr>
-        `;
-    }).join("");
+        return `<tr>
+            <td>${r}</td>
+            <td>${esc(s.name)}</td>
+            <td>${esc(s.department || "-")}</td>
+            <td>${hasFace ? "✅ Registered" : "❌ Not registered"}</td>
+            <td>
+                <button onclick="editStudent('${r}')">Edit</button>
+                <button class="red" onclick="deleteStudent('${r}')">Delete</button>
+            </td>
+        </tr>`;
+    }).join("") : '<tr><td colspan="5">No students found.</td></tr>';
 }
 
 function updateStudentSelect() {
     const select = document.getElementById("faceStudentSelect");
-    const oldValue = select.value;
+    const old = select.value;
 
-    select.innerHTML =
-        '<option value="">Choose a student</option>';
+    select.innerHTML = '<option value="">Choose a student</option>';
 
-    students.forEach(student => {
+    students.forEach(s => {
         const option = document.createElement("option");
-        option.value = student.registerNumber;
-        option.textContent =
-            `${student.registerNumber} — ${student.name}`;
-
+        option.value = s.registerNumber;
+        option.textContent = `${s.registerNumber} — ${s.name}`;
         select.appendChild(option);
     });
 
-    if (students.some(student =>
-        student.registerNumber === oldValue
-    )) {
-        select.value = oldValue;
-    }
+    if (students.some(s => s.registerNumber === old)) select.value = old;
 }
 
-/* =========================================================
+function refreshUI() {
+    renderStudents();
+    renderAttendance();
+    updateStudentSelect();
+    updateStats();
+}
+
+function updateStats() {
+    document.getElementById("totalStudents").textContent = students.length;
+
+    document.getElementById("todayAttendance").textContent =
+        new Set(attendance.filter(a => a.date === today())
+            .map(a => norm(a.registerNumber))).size;
+
+    document.getElementById("registeredFaces").textContent =
+        Object.keys(faceDescriptors).length;
+}
+
+/* ======================================================
    CSV IMPORT
-   ========================================================= */
+   ====================================================== */
 
 function parseCSV(text) {
     const rows = [];
-    let row = [];
-    let field = "";
-    let inQuotes = false;
+    let row = [], field = "", quoted = false;
 
     text = text.replace(/^\uFEFF/, "");
 
-    for (let i = 0; i < text.length; i++) {
-        const character = text[i];
+    for (let i=0; i<text.length; i++) {
+        const c = text[i];
 
-        if (character === '"') {
-            if (inQuotes && text[i + 1] === '"') {
+        if (c === '"') {
+            if (quoted && text[i+1] === '"') {
                 field += '"';
                 i++;
             } else {
-                inQuotes = !inQuotes;
+                quoted = !quoted;
             }
-        } else if (character === "," && !inQuotes) {
+        } else if (c === "," && !quoted) {
             row.push(field.trim());
             field = "";
-        } else if (
-            (character === "\n" || character === "\r") &&
-            !inQuotes
-        ) {
-            if (character === "\r" && text[i + 1] === "\n") {
-                i++;
-            }
-
+        } else if ((c === "\n" || c === "\r") && !quoted) {
+            if (c === "\r" && text[i+1] === "\n") i++;
             row.push(field.trim());
-
-            if (row.some(value => value !== "")) {
-                rows.push(row);
-            }
-
+            if (row.some(x => x !== "")) rows.push(row);
             row = [];
             field = "";
         } else {
-            field += character;
+            field += c;
         }
     }
 
     row.push(field.trim());
-
-    if (row.some(value => value !== "")) {
-        rows.push(row);
-    }
-
+    if (row.some(x => x !== "")) rows.push(row);
     return rows;
 }
 
-function canonicalColumn(name) {
-    return normalize(name).replace(/[^a-z0-9]/g, "");
+function canonicalHeader(value) {
+    return norm(value).replace(/[^a-z0-9]/g, "");
 }
 
 function importCSV() {
-    const fileInput = document.getElementById("csvFile");
-    const file = fileInput.files[0];
-
+    const file = document.getElementById("csvFile").files[0];
     if (!file) {
-        alert("Choose a CSV file first.");
+        alert("Choose your CSV file first.");
         return;
     }
 
     const reader = new FileReader();
 
-    reader.onload = function(event) {
+    reader.onload = event => {
         try {
             const rows = parseCSV(event.target.result);
 
             if (rows.length < 2) {
-                alert("The CSV file does not contain student rows.");
+                alert("No student records found in this CSV.");
                 return;
             }
 
-            const headers = rows[0].map(canonicalColumn);
+            const headers = rows[0].map(canonicalHeader);
 
-            function columnIndex(aliases) {
-                return headers.findIndex(header =>
-                    aliases.includes(header)
-                );
+            function col(names) {
+                return headers.findIndex(h => names.includes(h));
             }
 
-            const regIndex = columnIndex([
-                "registernumber",
-                "registerno",
-                "regno",
-                "register",
-                "registernum",
-                "rollnumber",
-                "rollno",
-                "roll"
-            ]);
+            const reg = col(["registernumber","registerno","regno","register","rollnumber","rollno","roll"]);
+            const name = col(["name","studentname","fullname","student"]);
+            const dept = col(["department","dept","section","class","departmentname"]);
+            const badge = col(["badge","designation","year"]);
+            const qr = col(["qrid","qr","qrvalue","qrnumber","qrcode","qrdata"]);
 
-            const nameIndex = columnIndex([
-                "name",
-                "studentname",
-                "fullname",
-                "student"
-            ]);
-
-            const deptIndex = columnIndex([
-                "department",
-                "dept",
-                "section",
-                "class",
-                "departmentname"
-            ]);
-
-            const badgeIndex = columnIndex([
-                "badge",
-                "designation",
-                "year"
-            ]);
-
-            const qrIndex = columnIndex([
-                "qrid",
-                "qr",
-                "qrvalue",
-                "qrnumber",
-                "qrcode",
-                "qrdata"
-            ]);
-
-            if (regIndex === -1 || nameIndex === -1) {
-                alert(
-                    "Could not find register number and name columns.\n\n" +
-                    "Use headers such as RegisterNumber, Name, Department, Badge, QRID."
-                );
+            if (reg < 0 || name < 0) {
+                alert("CSV needs register number and name columns.");
                 return;
             }
 
-            let added = 0;
-            let updated = 0;
-            let skipped = 0;
+            let added=0, updated=0, skipped=0;
 
-            for (let i = 1; i < rows.length; i++) {
-                const row = rows[i];
+            for (const row of rows.slice(1)) {
+                const registerNumber = String(row[reg] || "").trim();
+                const studentName = String(row[name] || "").trim();
 
-                const registerNumber =
-                    (row[regIndex] || "").trim();
-
-                const name =
-                    (row[nameIndex] || "").trim();
-
-                if (!registerNumber || !name) {
+                if (!registerNumber || !studentName) {
                     skipped++;
                     continue;
                 }
 
-                const department =
-                    deptIndex >= 0 ? (row[deptIndex] || "").trim() : "";
+                const department = dept >= 0 ? String(row[dept] || "").trim() : "";
+                const studentBadge = badge >= 0 ? String(row[badge] || "").trim() : "";
+                const qrId = qr >= 0 ? String(row[qr] || "").trim() : "";
 
-                const badge =
-                    badgeIndex >= 0 ? (row[badgeIndex] || "").trim() : "";
-
-                const qrId =
-                    qrIndex >= 0 ? (row[qrIndex] || "").trim() : "";
-
-                const existing =
-                    findStudentByRegister(registerNumber);
+                const existing = findStudentByRegister(registerNumber);
 
                 if (existing) {
-                    existing.name = name;
-                    existing.department = department || existing.department || "";
-                    existing.badge = badge || existing.badge || "";
-
+                    existing.name = studentName;
+                    if (department) existing.department = department;
+                    if (studentBadge) existing.badge = studentBadge;
                     if (qrId) existing.qrId = qrId;
-
                     updated++;
                 } else {
                     students.push({
                         registerNumber,
-                        name,
+                        name:studentName,
                         department,
-                        badge,
+                        badge:studentBadge,
                         qrId
                     });
-
                     added++;
                 }
             }
 
-            saveStudents();
+            store(STUDENTS_KEY, students);
             refreshUI();
 
-            alert(
-                "CSV import complete!\n\n" +
-                "Added: " + added + "\n" +
-                "Updated: " + updated + "\n" +
-                "Skipped: " + skipped
-            );
-
+            alert(`CSV import complete!\nAdded: ${added}\nUpdated: ${updated}\nSkipped: ${skipped}`);
         } catch (error) {
             console.error(error);
-            alert("Could not import this CSV file.");
+            alert("Could not read this CSV.");
         }
-    };
-
-    reader.onerror = function() {
-        alert("Could not read the selected CSV file.");
     };
 
     reader.readAsText(file);
 }
 
-/* =========================================================
-   QR IDENTIFICATION
-   ========================================================= */
+/* ======================================================
+   LOAD FACE AI MODELS
+   ====================================================== */
 
-function extractNumericCandidates(qrText) {
-    const text = String(qrText || "").trim();
-    const candidates = new Set();
-
-    // First consider the complete QR text.
-    candidates.add(text);
-
-    // Extract individual digit sequences from QR text or URL.
-    const digitGroups = text.match(/\d+/g) || [];
-
-    digitGroups.forEach(group => {
-        candidates.add(group);
-
-        // Preserve leading zeros for exact matching.
-        if (group.length > 1) {
-            candidates.add(group.replace(/^0+/, ""));
-        }
-    });
-
-    return [...candidates].filter(Boolean);
-}
-
-function identifyStudent(qrText) {
-    const raw = String(qrText || "").trim();
-
-    // 1. Check an existing manual QR mapping.
-    if (qrMappings[raw]) {
-        const mappedStudent = students.find(
-            s => String(s.registerNumber).trim() ===
-                 String(qrMappings[raw]).trim()
-        );
-
-        if (mappedStudent) return mappedStudent;
+async function loadModels() {
+    if (modelsLoaded) {
+        setStatus("modelStatus","Face AI is already loaded.","success");
+        return;
     }
 
-    // 2. Extract the QR ID from the scanned content.
-    const numbers = raw.match(/\d+/g) || [];
+    const button = document.getElementById("loadModelsBtn");
+    button.disabled = true;
 
-    for (const number of numbers) {
-        // Check if QR ID is already stored in the CSV.
-        const byQR = students.find(
-            s => String(s.qrId || "").trim() === number
-        );
+    try {
+        setStatus("modelStatus","Loading face detection and recognition models...");
+        document.getElementById("modelProgress").style.width = "10%";
 
-        if (byQR) return byQR;
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        document.getElementById("modelProgress").style.width = "40%";
 
-        // 3. Apply your original formula.
-        const calculatedRegister =
-            (BigInt(number) + BigInt(QR_TO_REG_OFFSET)).toString();
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        document.getElementById("modelProgress").style.width = "70%";
 
-        const byCalculatedRegister = students.find(
-            s => String(s.registerNumber).trim() ===
-                 calculatedRegister
-        );
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        document.getElementById("modelProgress").style.width = "100%";
 
-        if (byCalculatedRegister) return byCalculatedRegister;
-
-        // 4. Also check whether the QR directly contains a register number.
-        const byRegister = students.find(
-            s => String(s.registerNumber).trim() === number
-        );
-
-        if (byRegister) return byRegister;
+        modelsLoaded = true;
+        setStatus("modelStatus","Fast Face AI loaded successfully. Models are ready.","success");
+    } catch (error) {
+        console.error(error);
+        setStatus("modelStatus","Model loading failed. Check your internet connection and reload.","error");
+        document.getElementById("modelProgress").style.width = "0%";
+    } finally {
+        button.disabled = false;
     }
-
-    return null;
 }
 
-    // 1. Previously saved manual QR mapping.
-    if (qrMappings[raw]) {
-        const mapped =
-            findStudentByRegister(qrMappings[raw]);
-
-        if (mapped) return mapped;
-    }
-
-    // 2. Direct matching against stored QR IDs.
-    const directQR = findStudentByQRID(raw);
-
-    if (directQR) return directQR;
-
-    // 3. Direct register number in QR content.
-    const directReg = findStudentByRegister(raw);
-
-    if (directReg) return directReg;
-
-    const candidates = extractNumericCandidates(raw);
-
-    // 4. Try each numeric part as a QR ID or register number.
-    for (const candidate of candidates) {
-        const byQR = findStudentByQRID(candidate);
-
-        if (byQR) return byQR;
-
-        const byReg = findStudentByRegister(candidate);
-
-        if (byReg) return byReg;
-    }
-
-    // 5. Try the existing offset formula in both directions.
-    // Only accept a calculated number if it exists in the CSV database.
-    for (const candidate of candidates) {
-        if (!/^\d+$/.test(candidate)) continue;
-
-        try {
-            const qrBigInt = BigInt(candidate);
-
-            const possibleRegisters = [
-                (qrBigInt - BigInt(QR_TO_REG_OFFSET)).toString(),
-                (qrBigInt + BigInt(QR_TO_REG_OFFSET)).toString()
-            ];
-
-            for (const possible of possibleRegisters) {
-                const student = findStudentByRegister(possible);
-
-                if (student) return student;
-            }
-        } catch (error) {
-            // Ignore numbers that cannot be converted.
-        }
-    }
-
-    return null;
-}
-
-function assignQRMapping(qrText, student) {
-    qrMappings[String(qrText).trim()] = student.registerNumber;
-    saveMappings();
-}
-
-function showPendingStudent(student) {
-    const box = document.getElementById("pendingStudentBox");
-
-    box.classList.remove("hidden");
-    box.innerHTML =
-        "<b>Student identified</b><br>" +
-        escapeHTML(student.name) + "<br>" +
-        "Register number: " +
-        escapeHTML(student.registerNumber);
-}
-
-/* =========================================================
-   QR CAMERA
-   ========================================================= */
+/* ======================================================
+   QR CAMERA AND IDENTIFICATION
+   ====================================================== */
 
 async function startQRScanner() {
     if (qrRunning) return;
 
-    if (faceCameraRunning) {
-        await stopFaceCamera();
+    if (faceCameraRunning) await stopFaceCamera();
+
+    if (typeof Html5Qrcode === "undefined") {
+        setStatus("qrStatus","QR scanner library did not load. Refresh the page.","error");
+        return;
     }
 
-    const status = document.getElementById("qrStatus");
-
-    status.textContent = "Starting QR camera...";
-    status.className = "status";
-
     try {
-        if (!qrScanner) {
-            qrScanner = new Html5Qrcode("qr-reader");
-        }
+        if (!qrScanner) qrScanner = new Html5Qrcode("qr-reader");
+
+        setStatus("qrStatus","Starting QR scanner...");
 
         await qrScanner.start(
-            { facingMode: "environment" },
-            {
-                fps: 12,
-                qrbox: { width: 240, height: 240 },
-                aspectRatio: 1
-            },
+            {facingMode:"environment"},
+            {fps:12,qrbox:{width:240,height:240}},
             async decodedText => {
                 if (qrBusy) return;
-
                 qrBusy = true;
-                currentQrText = decodedText;
-
-                setStatus(
-                    "qrStatus",
-                    "QR detected. Identifying student...",
-                    "success"
-                );
 
                 await stopQRScanner();
 
                 const student = identifyStudent(decodedText);
 
                 if (!student) {
-                    pendingFaceStudent = null;
-
+                    console.log("Unmatched QR content:", decodedText);
                     setStatus(
                         "qrStatus",
-                        "QR was scanned, but no matching student was found. " +
-                        "Import the correct CSV or add a QR mapping.",
+                        "QR scanned, but no matching student was found. Check the QR value and CSV.",
                         "error"
                     );
-
                     qrBusy = false;
                     return;
                 }
 
                 pendingFaceStudent = student;
-                currentStudentId = student.registerNumber;
+                qrMappings[String(decodedText).trim()] = student.registerNumber;
+                store(MAPPINGS_KEY, qrMappings);
 
-                assignQRMapping(decodedText, student);
-                showPendingStudent(student);
+                document.getElementById("pendingStudentBox").classList.remove("hidden");
+                document.getElementById("pendingStudentBox").textContent =
+                    `Student: ${student.name} | Register number: ${student.registerNumber}`;
+
+                setStatus("qrStatus",`QR matched ${student.name}.`,"success");
 
                 if (!modelsLoaded) {
-                    setStatus(
-                        "qrStatus",
-                        "Student identified: " + student.name +
-                        ". Load Face AI to enable automatic verification.",
-                        "warning"
-                    );
-
+                    setStatus("qrStatus","Student found. Load Face AI before face verification.","warning");
                     qrBusy = false;
                     return;
                 }
 
-                if (!faceDescriptors[student.registerNumber]) {
-                    setStatus(
-                        "qrStatus",
-                        "Student identified: " + student.name +
-                        ", but no face is registered. Register their face first.",
-                        "warning"
-                    );
-
-                    setStatus(
-                        "faceStatus",
-                        "No registered face exists for " + student.name + ".",
-                        "warning"
-                    );
-
+                if (!Array.isArray(faceDescriptors[student.registerNumber])) {
+                    setStatus("faceStatus",`No face registered for ${student.name}. Register their face first.`,"warning");
                     qrBusy = false;
                     return;
                 }
-
-                setStatus(
-                    "qrStatus",
-                    "QR matched " + student.name +
-                    ". Opening face camera...",
-                    "success"
-                );
 
                 facePurpose = "attendance";
                 await startFaceCamera();
-
                 qrBusy = false;
             },
-            () => {
-                // Ignore routine QR frame errors.
-            }
+            () => {}
         );
 
         qrRunning = true;
-
         document.getElementById("startQrBtn").disabled = true;
-
-        setStatus("qrStatus", "QR scanner is active.");
-
+        setStatus("qrStatus","QR scanner is active.");
     } catch (error) {
-        console.error("QR camera error:", error);
-
-        setStatus(
-            "qrStatus",
-            "Could not start QR camera. Allow camera permission and use HTTPS.",
-            "error"
-        );
-
+        console.error(error);
+        setStatus("qrStatus","Could not start QR camera. Check camera permission.","error");
         qrRunning = false;
         qrBusy = false;
     }
@@ -1332,141 +646,46 @@ async function startQRScanner() {
 
 async function stopQRScanner() {
     if (qrScanner && qrRunning) {
-        try {
-            await qrScanner.stop();
-        } catch (error) {
-            console.warn("QR scanner stop:", error);
-        }
+        try { await qrScanner.stop(); } catch (error) { console.warn(error); }
     }
 
     qrRunning = false;
-
     document.getElementById("startQrBtn").disabled = false;
 }
 
-async function stopAllCameras() {
-    await stopQRScanner();
-    await stopFaceCamera();
-
-    setStatus(
-        "qrStatus",
-        "All cameras stopped."
-    );
-}
-
-/* =========================================================
-   FACE AI MODEL LOADING
-   ========================================================= */
-
-async function loadModels() {
-    if (modelsLoaded) {
-        setStatus("modelStatus", "Face AI is already loaded.", "success");
-        return;
-    }
-
-    const button = document.getElementById("loadModelsBtn");
-
-    button.disabled = true;
-
-    setStatus(
-        "modelStatus",
-        "Loading fast face detector, landmarks and recognition model..."
-    );
-
-    document.getElementById("modelProgress").style.width = "15%";
-
-    try {
-        if (typeof faceapi === "undefined") {
-            throw new Error("Face API library did not load.");
-        }
-
-        // Load the lightweight detector.
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-
-        document.getElementById("modelProgress").style.width = "45%";
-
-        // Needed to obtain facial landmarks.
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-
-        document.getElementById("modelProgress").style.width = "70%";
-
-        // Needed to create face descriptors.
-        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-
-        document.getElementById("modelProgress").style.width = "100%";
-
-        modelsLoaded = true;
-
-        setStatus(
-            "modelStatus",
-            "Fast Face AI loaded successfully. Models are ready.",
-            "success"
-        );
-
-    } catch (error) {
-        console.error("Model loading failed:", error);
-
-        setStatus(
-            "modelStatus",
-            "Could not load AI models. Check your internet connection and reload the page.",
-            "error"
-        );
-
-        document.getElementById("modelProgress").style.width = "0%";
-
-    } finally {
-        button.disabled = false;
-    }
-}
-
-/* =========================================================
-   FACE CAMERA
-   ========================================================= */
+/* ======================================================
+   FACE CAMERA AND FAST DETECTION
+   ====================================================== */
 
 async function startFaceCamera() {
     if (!modelsLoaded) {
-        setStatus(
-            "faceStatus",
-            "Load Face AI first.",
-            "warning"
-        );
+        setStatus("faceStatus","Load Face AI first.","warning");
         return;
     }
 
-    if (faceCameraRunning) {
-        return;
-    }
+    if (faceCameraRunning) return;
 
-    // Ensure the QR camera is not holding the device camera.
     await stopQRScanner();
 
     try {
-        setStatus(
-            "faceStatus",
-            "Opening face camera...",
-            "success"
-        );
-
         const video = document.getElementById("faceVideo");
 
+        setStatus("faceStatus","Opening face camera...");
+
         faceStream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: {
-                facingMode: "user",
-                width: { ideal: 480 },
-                height: { ideal: 360 },
-                frameRate: { ideal: 24, max: 30 }
+            audio:false,
+            video:{
+                facingMode:"user",
+                width:{ideal:480},
+                height:{ideal:360}
             }
         });
 
         video.srcObject = faceStream;
 
         await new Promise(resolve => {
-            if (video.readyState >= 2) {
-                resolve();
-            } else {
-                video.onloadedmetadata = () => resolve();
-            }
+            if (video.readyState >= 2) resolve();
+            else video.onloadedmetadata = resolve;
         });
 
         await video.play();
@@ -1474,348 +693,164 @@ async function startFaceCamera() {
         faceCameraRunning = true;
         faceLoopRunning = true;
         faceBusy = false;
-
-        autoAttemptCount = 0;
-        consecutiveFaceMatches = 0;
+        consecutiveMatches = 0;
 
         document.getElementById("startFaceBtn").disabled = true;
         document.getElementById("verifyBtn").disabled = false;
 
-        if (facePurpose === "registration") {
-            setStatus(
-                "faceStatus",
-                "Camera ready. Look directly at the camera and hold still.",
-                "success"
-            );
-        } else {
-            setStatus(
-                "faceStatus",
-                "Face camera active. Looking for a match...",
-                "success"
-            );
-        }
+        setStatus("faceStatus",
+            facePurpose === "registration"
+            ? "Look at the camera and hold still, then tap Verify / Register Face."
+            : "Looking for a face match...",
+            "success");
 
         faceDetectionLoop();
-
     } catch (error) {
-        console.error("Face camera error:", error);
-
-        faceCameraRunning = false;
-        faceLoopRunning = false;
-
-        setStatus(
-            "faceStatus",
-            "Could not open face camera. Check camera permissions and try again.",
-            "error"
-        );
-
-        document.getElementById("startFaceBtn").disabled = false;
-        document.getElementById("verifyBtn").disabled = true;
+        console.error(error);
+        setStatus("faceStatus","Could not open face camera. Check camera permissions.","error");
+        await stopFaceCamera();
     }
 }
 
 async function stopFaceCamera() {
     faceLoopRunning = false;
     faceCameraRunning = false;
-    faceBusy = false;
-
-    const video = document.getElementById("faceVideo");
 
     if (faceStream) {
         faceStream.getTracks().forEach(track => track.stop());
         faceStream = null;
     }
 
+    const video = document.getElementById("faceVideo");
     video.srcObject = null;
 
     document.getElementById("startFaceBtn").disabled = false;
     document.getElementById("verifyBtn").disabled = true;
 }
 
-/* =========================================================
-   FAST FACE DETECTION LOOP
-   ========================================================= */
+async function stopAllCameras() {
+    await stopQRScanner();
+    await stopFaceCamera();
+    setStatus("qrStatus","All cameras stopped.");
+}
 
-async function detectFaceDescriptor() {
+async function detectDescriptor() {
     const video = document.getElementById("faceVideo");
 
-    if (
-        !video ||
-        video.readyState < 2 ||
-        video.videoWidth === 0 ||
-        video.videoHeight === 0
-    ) {
-        return null;
-    }
+    if (!video.videoWidth || video.readyState < 2) return null;
 
-    const result = await faceapi
+    return await faceapi
         .detectSingleFace(
             video,
             new faceapi.TinyFaceDetectorOptions({
-                inputSize: TINY_INPUT_SIZE,
-                scoreThreshold: TINY_SCORE_THRESHOLD
+                inputSize:160,
+                scoreThreshold:0.5
             })
         )
         .withFaceLandmarks()
         .withFaceDescriptor();
-
-    return result || null;
 }
 
 async function faceDetectionLoop() {
     while (faceLoopRunning && faceCameraRunning) {
-        const startTime = performance.now();
+        if (!faceBusy) {
+            faceBusy = true;
 
-        try {
-            if (!faceBusy) {
-                faceBusy = true;
+            try {
+                const result = await detectDescriptor();
 
-                const result = await detectFaceDescriptor();
-
-                if (result) {
-                    await handleDetectedFace(result.descriptor);
-                } else {
-                    consecutiveFaceMatches = 0;
-
-                    if (facePurpose === "attendance") {
-                        setStatus(
-                            "faceStatus",
-                            "No clear face detected. Look at the camera and improve the lighting."
-                        );
-                    }
+                if (result && facePurpose === "attendance") {
+                    await processFaceMatch(Array.from(result.descriptor));
+                } else if (!result && facePurpose === "attendance") {
+                    consecutiveMatches = 0;
+                    setStatus("faceStatus","No clear face detected. Look at the camera.","warning");
                 }
-
+            } catch (error) {
+                console.error(error);
+            } finally {
                 faceBusy = false;
             }
-        } catch (error) {
-            faceBusy = false;
-            console.error("Face detection error:", error);
         }
 
-        // Avoid unnecessarily processing every video frame.
-        const elapsed = performance.now() - startTime;
-        const wait = Math.max(80, 250 - elapsed);
-
-        await new Promise(resolve => setTimeout(resolve, wait));
+        await new Promise(resolve => setTimeout(resolve,180));
     }
 }
 
-/* =========================================================
-   FACE REGISTRATION AND VERIFICATION
-   ========================================================= */
-
-async function handleDetectedFace(descriptor) {
-    if (!faceCameraRunning) return;
-
-    if (facePurpose === "registration") {
-        return;
-    }
-
-    const student = pendingFaceStudent;
-
-    if (!student) {
-        setStatus(
-            "faceStatus",
-            "Scan a student QR code first.",
-            "warning"
-        );
-        return;
-    }
-
-    const saved = faceDescriptors[student.registerNumber];
-
-    if (!Array.isArray(saved) || saved.length === 0) {
-        setStatus(
-            "faceStatus",
-            "No registered face found for this student.",
-            "error"
-        );
-        return;
-    }
-
-    const distance = euclideanDistance(descriptor, saved);
-
-    if (distance <= FACE_MATCH_THRESHOLD) {
-        consecutiveFaceMatches++;
-
-        setStatus(
-            "faceStatus",
-            "Face match detected (" + distance.toFixed(3) +
-            "). Confirming...",
-            "success"
-        );
-
-        // Require two consecutive matching detections.
-        if (consecutiveFaceMatches >= 2) {
-            faceLoopRunning = false;
-
-            const recorded = recordAttendance(student);
-
-            if (recorded) {
-                setStatus(
-                    "faceStatus",
-                    "✅ Face verified! Attendance marked for " +
-                    student.name + ".",
-                    "success"
-                );
-
-                setStatus(
-                    "qrStatus",
-                    "Attendance completed for " + student.name + ".",
-                    "success"
-                );
-            } else {
-                setStatus(
-                    "faceStatus",
-                    "Attendance was already marked today for " +
-                    student.name + ".",
-                    "warning"
-                );
-            }
-
-            await stopFaceCamera();
-
-            // Reset state before the next student.
-            pendingFaceStudent = null;
-            currentStudentId = null;
-            facePurpose = "attendance";
-            consecutiveFaceMatches = 0;
-
-            setTimeout(() => {
-                setStatus(
-                    "qrStatus",
-                    "Ready for the next student. Start the QR scanner."
-                );
-
-                document.getElementById("pendingStudentBox")
-                    .classList.add("hidden");
-            }, 1500);
-        }
-
-    } else {
-        consecutiveFaceMatches = 0;
-
-        setStatus(
-            "faceStatus",
-            "Face does not match the registered student. " +
-            "Look directly at the camera and try again.",
-            "warning"
-        );
-    }
-}
-
-function euclideanDistance(a, b) {
-    if (!a || !b || a.length !== b.length) {
-        return Infinity;
-    }
+function distanceBetween(a,b) {
+    if (!a || !b || a.length !== b.length) return Infinity;
 
     let sum = 0;
-
-    for (let i = 0; i < a.length; i++) {
-        const difference = Number(a[i]) - Number(b[i]);
-        sum += difference * difference;
+    for (let i=0;i<a.length;i++) {
+        const d = Number(a[i])-Number(b[i]);
+        sum += d*d;
     }
-
     return Math.sqrt(sum);
 }
 
-async function verifyFaceManually() {
-    if (!modelsLoaded) {
-        alert("Load Face AI first.");
+async function processFaceMatch(descriptor) {
+    const student = pendingFaceStudent;
+    if (!student) return;
+
+    const saved = faceDescriptors[student.registerNumber];
+
+    if (!Array.isArray(saved)) {
+        setStatus("faceStatus","No registered face found.","error");
         return;
     }
 
-    if (!pendingFaceStudent) {
-        alert("Scan a student QR code first.");
-        return;
-    }
+    const distance = distanceBetween(descriptor,saved);
 
-    if (!faceCameraRunning) {
-        await startFaceCamera();
-        return;
-    }
+    if (distance <= FACE_THRESHOLD) {
+        consecutiveMatches++;
 
-    if (faceBusy) {
         setStatus(
             "faceStatus",
-            "Face detection is already running. Please wait."
+            `Face match detected (${distance.toFixed(3)}). Confirming...`,
+            "success"
         );
-        return;
-    }
 
-    faceBusy = true;
+        // Require multiple matching frames to reduce accidental matches.
+        if (consecutiveMatches >= 2) {
+            faceLoopRunning = false;
 
-    try {
-        const result = await detectFaceDescriptor();
-
-        if (!result) {
-            setStatus(
-                "faceStatus",
-                "No clear face detected. Try again with better lighting.",
-                "warning"
-            );
-            return;
-        }
-
-        const student = pendingFaceStudent;
-        const saved = faceDescriptors[student.registerNumber];
-
-        if (!Array.isArray(saved)) {
-            setStatus(
-                "faceStatus",
-                "This student does not have a registered face.",
-                "error"
-            );
-            return;
-        }
-
-        const distance = euclideanDistance(result.descriptor, saved);
-
-        if (distance <= FACE_MATCH_THRESHOLD) {
             const recorded = recordAttendance(student);
 
             setStatus(
                 "faceStatus",
                 recorded
-                    ? "✅ Face verified and attendance marked!"
-                    : "Attendance was already marked today.",
+                    ? `✅ Verified. Attendance marked for ${student.name}.`
+                    : `Attendance already marked today for ${student.name}.`,
                 recorded ? "success" : "warning"
             );
+
+            setStatus("qrStatus",`Finished processing ${student.name}.`,"success");
 
             await stopFaceCamera();
 
             pendingFaceStudent = null;
-            currentStudentId = null;
             facePurpose = "attendance";
+            consecutiveMatches = 0;
 
-        } else {
-            setStatus(
-                "faceStatus",
-                "Face did not match. Distance: " +
-                distance.toFixed(3),
-                "error"
-            );
+            setTimeout(() => {
+                document.getElementById("pendingStudentBox").classList.add("hidden");
+                setStatus("qrStatus","Ready for the next student. Start the QR scanner.");
+            },1500);
         }
-
-    } catch (error) {
-        console.error(error);
-
-        setStatus(
-            "faceStatus",
-            "Face verification failed. Please try again.",
-            "error"
-        );
-
-    } finally {
-        faceBusy = false;
+    } else {
+        consecutiveMatches = 0;
+        setStatus("faceStatus","Face does not match the registered student. Try again.","warning");
     }
 }
 
-async function registerStudentFace() {
-    const registerNumber =
-        document.getElementById("faceStudentSelect").value;
+/* ======================================================
+   FACE REGISTRATION
+   ====================================================== */
 
-    if (!registerNumber) {
+async function registerStudentFace() {
+    const registerNumber = document.getElementById("faceStudentSelect").value;
+    const student = findStudentByRegister(registerNumber);
+
+    if (!student) {
         alert("Select a student first.");
         return;
     }
@@ -1825,164 +860,147 @@ async function registerStudentFace() {
         return;
     }
 
-    const student = findStudentByRegister(registerNumber);
-
-    if (!student) {
-        alert("Student not found.");
-        return;
-    }
-
-    if (faceCameraRunning) {
-        await stopFaceCamera();
-    }
-
     await stopQRScanner();
+    await stopFaceCamera();
 
     pendingFaceStudent = student;
-    currentStudentId = student.registerNumber;
     facePurpose = "registration";
 
-    setStatus(
-        "faceStatus",
-        "Registering face for " + student.name +
-        ". The camera will open now."
-    );
-
     await startFaceCamera();
-
-    if (faceCameraRunning) {
-        setStatus(
-            "faceStatus",
-            "Registration mode: look directly at the camera and hold still. " +
-            "Press Verify Face Manually to save the face.",
-            "warning"
-        );
-    }
 }
 
-async function saveFaceDescriptorForSelectedStudent() {
-    if (!pendingFaceStudent) {
-        alert("Select a student and start face registration first.");
+async function manualFaceAction() {
+    if (!modelsLoaded) {
+        alert("Load Face AI first.");
         return;
     }
 
-    if (!faceCameraRunning || faceBusy) {
-        alert("Wait until the camera is ready.");
+    if (!faceCameraRunning) {
+        await startFaceCamera();
+        return;
+    }
+
+    if (faceBusy) {
+        setStatus("faceStatus","Wait for the current face detection to finish.");
         return;
     }
 
     faceBusy = true;
 
     try {
-        const result = await detectFaceDescriptor();
+        const result = await detectDescriptor();
 
         if (!result) {
-            setStatus(
-                "faceStatus",
-                "No clear face detected. Improve lighting and try again.",
-                "warning"
-            );
+            setStatus("faceStatus","No clear face detected. Try better lighting.","warning");
             return;
         }
 
-        faceDescriptors[pendingFaceStudent.registerNumber] =
-            Array.from(result.descriptor);
+        const descriptor = Array.from(result.descriptor);
 
-        saveFaces();
-        updateStats();
-        renderStudents();
+        if (facePurpose === "registration") {
+            if (!pendingFaceStudent) {
+                alert("Select a student first.");
+                return;
+            }
 
-        const name = pendingFaceStudent.name;
+            faceDescriptors[pendingFaceStudent.registerNumber] = descriptor;
+            store(FACES_KEY,faceDescriptors);
 
-        setStatus(
-            "faceStatus",
-            "Face registered successfully for " + name + ".",
-            "success"
-        );
+            const name = pendingFaceStudent.name;
 
-        await stopFaceCamera();
+            setStatus("faceStatus",`Face registered for ${name}.`,"success");
 
-        pendingFaceStudent = null;
-        currentStudentId = null;
-        facePurpose = "attendance";
+            await stopFaceCamera();
+            pendingFaceStudent = null;
+            facePurpose = "attendance";
 
+            refreshUI();
+            return;
+        }
+
+        if (!pendingFaceStudent) {
+            alert("Scan a student QR first.");
+            return;
+        }
+
+        const saved = faceDescriptors[pendingFaceStudent.registerNumber];
+
+        if (!Array.isArray(saved)) {
+            setStatus("faceStatus","No face is registered for this student.","error");
+            return;
+        }
+
+        const distance = distanceBetween(descriptor,saved);
+
+        if (distance <= FACE_THRESHOLD) {
+            const student = pendingFaceStudent;
+            const recorded = recordAttendance(student);
+
+            setStatus(
+                "faceStatus",
+                recorded ? "Face verified and attendance marked." : "Attendance already marked today.",
+                recorded ? "success" : "warning"
+            );
+
+            await stopFaceCamera();
+            pendingFaceStudent = null;
+            facePurpose = "attendance";
+        } else {
+            setStatus("faceStatus",`Face mismatch. Distance: ${distance.toFixed(3)}.`,"error");
+        }
     } catch (error) {
         console.error(error);
-
-        setStatus(
-            "faceStatus",
-            "Could not register the face.",
-            "error"
-        );
-
+        setStatus("faceStatus","Face processing failed. Try again.","error");
     } finally {
         faceBusy = false;
     }
 }
 
-/* =========================================================
-   ATTENDANCE
-   ========================================================= */
+/* ======================================================
+   ATTENDANCE AND CSV EXPORT
+   ====================================================== */
 
 function recordAttendance(student) {
     if (!student) return false;
 
-    const today = todayString();
-
-    const alreadyExists = attendance.some(record =>
-        normalize(record.registerNumber) ===
-            normalize(student.registerNumber) &&
-        record.date === today
+    const exists = attendance.some(a =>
+        norm(a.registerNumber) === norm(student.registerNumber) &&
+        a.date === today()
     );
 
-    if (alreadyExists) {
+    if (exists) {
         renderAttendance();
         updateStats();
         return false;
     }
 
     attendance.push({
-        date: today,
-        time: timeString(),
-        registerNumber: student.registerNumber,
-        name: student.name,
-        status: "Present"
+        date:today(),
+        time:new Date().toLocaleTimeString(),
+        registerNumber:student.registerNumber,
+        name:student.name,
+        status:"Present"
     });
 
-    saveAttendance();
+    store(ATTENDANCE_KEY,attendance);
     renderAttendance();
     updateStats();
-
     return true;
 }
 
 function renderAttendance() {
-    const tbody = document.getElementById("attendanceTable");
-    const filterDate = document.getElementById("attendanceDate").value;
+    const body = document.getElementById("attendanceTable");
+    const filter = document.getElementById("attendanceDate").value;
 
-    let records = attendance.slice();
+    let list = attendance.filter(a => !filter || a.date === filter).slice().reverse();
 
-    if (filterDate) {
-        records = records.filter(record => record.date === filterDate);
-    }
-
-    records.reverse();
-
-    if (!records.length) {
-        tbody.innerHTML =
-            '<tr><td colspan="5">No attendance records found.</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = records.map(record => `
-        <tr>
-            <td>${escapeHTML(record.date)}</td>
-            <td>${escapeHTML(record.time)}</td>
-            <td>${escapeHTML(record.registerNumber)}</td>
-            <td>${escapeHTML(record.name)}</td>
-            <td>${escapeHTML(record.status)}</td>
-        </tr>
-    `).join("");
+    body.innerHTML = list.length ? list.map(a => `<tr>
+        <td>${esc(a.date)}</td>
+        <td>${esc(a.time)}</td>
+        <td>${esc(a.registerNumber)}</td>
+        <td>${esc(a.name)}</td>
+        <td>${esc(a.status)}</td>
+    </tr>`).join("") : '<tr><td colspan="5">No attendance records found.</td></tr>';
 }
 
 function clearDateFilter() {
@@ -1990,114 +1008,55 @@ function clearDateFilter() {
     renderAttendance();
 }
 
-/* =========================================================
-   CSV EXPORT
-   ========================================================= */
-
-function csvCell(value) {
-    const text = String(value ?? "");
-
-    return '"' + text.replace(/"/g, '""') + '"';
-}
-
-function downloadCSV(filename, rows) {
+function downloadCSV(filename,rows) {
     const csv = rows.map(row =>
-        row.map(csvCell).join(",")
+        row.map(value => '"' + String(value ?? "").replace(/"/g,'""') + '"').join(",")
     ).join("\r\n");
 
-    const blob = new Blob(
-        ["\uFEFF" + csv],
-        { type: "text/csv;charset=utf-8;" }
-    );
-
+    const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+    const a = document.createElement("a");
 
-    link.href = url;
-    link.download = filename;
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 
 function exportAttendance() {
-    const rows = [
-        ["Date", "Time", "RegisterNumber", "Name", "Status"]
-    ];
+    const rows = [["Date","Time","RegisterNumber","Name","Status"]];
 
-    attendance.forEach(record => {
-        rows.push([
-            record.date,
-            record.time,
-            record.registerNumber,
-            record.name,
-            record.status
-        ]);
-    });
+    attendance.forEach(a => rows.push([
+        a.date,a.time,a.registerNumber,a.name,a.status
+    ]));
 
-    downloadCSV(
-        "smart_qr_attendance_" + todayString() + ".csv",
-        rows
-    );
+    downloadCSV("smart_qr_attendance.csv",rows);
 }
 
 function exportStudents() {
-    const rows = [
-        ["RegisterNumber", "Name", "Department", "Badge", "QRID"]
-    ];
+    const rows = [["RegisterNumber","Name","Department","Badge","QRID"]];
 
-    students.forEach(student => {
-        rows.push([
-            student.registerNumber,
-            student.name,
-            student.department || "",
-            student.badge || "",
-            student.qrId || ""
-        ]);
-    });
+    students.forEach(s => rows.push([
+        s.registerNumber,s.name,s.department || "",s.badge || "",s.qrId || ""
+    ]));
 
-    downloadCSV("smart_qr_students.csv", rows);
+    downloadCSV("smart_qr_students.csv",rows);
 }
 
-/* =========================================================
-   MANUAL FACE REGISTRATION BUTTON BEHAVIOUR
-   ========================================================= */
-
-// In registration mode, the same button saves the face descriptor.
-// In attendance mode, it verifies the student's identity.
-const originalVerifyFaceManually = verifyFaceManually;
-
-verifyFaceManually = async function() {
-    if (facePurpose === "registration") {
-        await saveFaceDescriptorForSelectedStudent();
-    } else {
-        await originalVerifyFaceManually();
-    }
-};
-
-/* =========================================================
+/* ======================================================
    STARTUP
-   ========================================================= */
+   ====================================================== */
 
-document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("attendanceDate").value = todayString();
-
+document.addEventListener("DOMContentLoaded",() => {
+    document.getElementById("attendanceDate").value = today();
     refreshUI();
 
-    setStatus(
-        "modelStatus",
-        "Tap Load Face AI to prepare the fast recognition system."
-    );
-
-    setStatus(
-        "qrStatus",
-        "Import your CSV if needed, load Face AI, then start scanning."
-    );
+    setStatus("modelStatus","Tap Load Face AI to prepare the recognition system.");
+    setStatus("qrStatus","Import your CSV if needed, load Face AI, then start scanning.");
 });
 </script>
-
 </body>
 </html>
