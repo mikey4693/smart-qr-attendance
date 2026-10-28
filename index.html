@@ -586,6 +586,8 @@ async function startQRScanner() {
             {facingMode:"environment"},
             {fps:12,qrbox:{width:240,height:240}},
             async decodedText => {
+                console.log("SCANNED QR CONTENT:", decodedText);
+                alert("Scanned QR content:\n" + decodedText);
                 if (qrBusy) return;
                 qrBusy = true;
 
