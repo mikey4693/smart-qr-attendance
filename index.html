@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Smart QR Attendance</title>
+<title>Smart QR Attendance - Liveness Diagnostics</title>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
@@ -27,6 +27,7 @@ label{font-weight:bold}
 .success{background:#f0fdf4;border-color:#16a34a}
 .error{background:#fef2f2;border-color:#dc2626}
 .warning{background:#fffbeb;border-color:#d97706}
+.liveness-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.liveness-score{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px;text-align:center}.liveness-score strong{display:block;font-size:20px}.liveness-score span{font-size:12px;color:#64748b}@media(max-width:420px){.liveness-grid{grid-template-columns:1fr}}
 .small{font-size:13px;color:#64748b;line-height:1.5}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:15px}
 .stat{background:white;border-radius:10px;padding:14px 5px;text-align:center}
@@ -86,6 +87,16 @@ th{background:#eff6ff}
 <button class="green" id="verifyBtn" onclick="manualFaceAction()" disabled>Verify / Register Face</button>
 <button class="gray" onclick="stopFaceCamera()">Stop Face Camera</button>
 <div id="faceStatus" class="status">Waiting for a student.</div>
+<div id="livenessDiagnostics" class="status" aria-live="polite">
+<strong>Anti-spoof diagnostic scores</strong>
+<p class="small">Waiting for a face frame. These scores help us diagnose the model; they are not proof that a person is live.</p>
+<div class="liveness-grid">
+  <div class="liveness-score"><strong id="liveScore">—</strong><span>Live (class 0)</span></div>
+  <div class="liveness-score"><strong id="printScore">—</strong><span>Print (class 1)</span></div>
+  <div class="liveness-score"><strong id="replayScore">—</strong><span>Replay (class 2)</span></div>
+</div>
+<p id="livenessExtra" class="small">Current threshold: 45%. Model output order is based on the model card.</p>
+</div>
 </section>
 
 <section class="card">
@@ -1038,13 +1049,29 @@ async function classifyFaceLiveness(detectionResult) {
         probabilities = exps.map(v => v / total);
     }
 
-    // This ONNX model card documents output order as:
+    // The model card for this exact ONNX file documents output order as:
     // class 0 = live, class 1 = print attack, class 2 = replay attack.
-    return {
-        live: probabilities[0],
-        print: probabilities[1],
-        replay: probabilities[2]
-    };
+    // Show all three values so we can diagnose genuine-camera false rejections.
+    const live = probabilities[0];
+    const print = probabilities[1];
+    const replay = probabilities[2];
+
+    const pct = value => `${(value * 100).toFixed(1)}%`;
+    const liveEl = document.getElementById("liveScore");
+    const printEl = document.getElementById("printScore");
+    const replayEl = document.getElementById("replayScore");
+    const extraEl = document.getElementById("livenessExtra");
+    if (liveEl) liveEl.textContent = pct(live);
+    if (printEl) printEl.textContent = pct(print);
+    if (replayEl) replayEl.textContent = pct(replay);
+    if (extraEl) {
+        extraEl.textContent =
+            `Raw model output: [${raw.map(v => Number(v).toFixed(4)).join(", ")}] | ` +
+            `Threshold: ${(LIVENESS_THRESHOLD * 100).toFixed(0)}% | ` +
+            `Live class: 0`;
+    }
+
+    return { live, print, replay };
 }
 
 async function checkLiveSequence() {
