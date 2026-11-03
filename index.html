@@ -190,7 +190,7 @@ const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
 const FACE_THRESHOLD = 0.50;
 /* MiniFASNet V2: passive print/replay anti-spoof model (Apache-2.0 model card). */
 const ANTISPOOF_MODEL_URL = "https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx";
-const LIVENESS_THRESHOLD = 0.80;
+const LIVENESS_THRESHOLD = 0.60;
 const LIVENESS_FRAMES_REQUIRED = 3;
 
 let students = readJSON(STUDENTS_KEY, []);
@@ -1038,9 +1038,11 @@ async function classifyFaceLiveness(detectionResult) {
         probabilities = exps.map(v => v / total);
     }
 
+    // MiniFASNet V2 follows the upstream Silent-Face class order:
+    // class 0 = attack, class 1 = bona-fide/live, class 2 = attack.
     return {
-        live: probabilities[0],
-        print: probabilities[1],
+        print: probabilities[0],
+        live: probabilities[1],
         replay: probabilities[2]
     };
 }
@@ -1060,7 +1062,7 @@ async function checkLiveSequence() {
     const averageLive = scores.reduce((sum, item) => sum + item.live, 0) / scores.length;
     const averageSpoof = scores.reduce((sum, item) => sum + item.print + item.replay, 0) / scores.length;
     return {
-        passed: averageLive >= LIVENESS_THRESHOLD,
+        passed: averageLive >= LIVENESS_THRESHOLD && averageLive > averageSpoof / 2,
         live: averageLive,
         spoof: averageSpoof
     };
@@ -1085,14 +1087,15 @@ async function faceDetectionLoop() {
 
                     if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
                         const avgLive = livenessSamples.reduce((sum, item) => sum + item.live, 0) / LIVENESS_FRAMES_REQUIRED;
-                        if (avgLive >= LIVENESS_THRESHOLD) {
+                        const avgSpoof = livenessSamples.reduce((sum, item) => sum + item.spoof, 0) / LIVENESS_FRAMES_REQUIRED;
+                        if (avgLive >= LIVENESS_THRESHOLD && avgLive > avgSpoof / 2) {
                             const latestDescriptor = livenessSamples[livenessSamples.length - 1].descriptor;
                             livenessSamples = [];
                             await processFaceMatch(latestDescriptor);
                         } else {
                             consecutiveMatches = 0;
                             livenessSamples = [];
-                            setStatus("faceStatus","Liveness check was uncertain. Keep your face naturally visible and try again.","warning");
+                            setStatus("faceStatus","Live-face confidence was too low. Face the camera in even lighting and try again.","warning");
                         }
                     } else {
                         setStatus("faceStatus",`Checking passive liveness... ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames`,"warning");
