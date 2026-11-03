@@ -7,6 +7,7 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 
 <style>
 *{box-sizing:border-box}
@@ -79,7 +80,7 @@ th{background:#eff6ff}
 
 <section class="card">
 <h2>👤 Face Verification</h2>
-<p class="small">After a valid QR match, the face camera opens automatically.</p>
+<p class="small">After a valid QR match, the face camera opens automatically. Passive liveness checks a short sequence of frames for print/screen spoofing before face matching. It may still make mistakes and must be tested.</p>
 <video id="faceVideo" autoplay muted playsinline></video>
 <button id="startFaceBtn" onclick="startFaceCamera()">Start Face Camera</button>
 <button class="green" id="verifyBtn" onclick="manualFaceAction()" disabled>Verify / Register Face</button>
@@ -122,6 +123,39 @@ th{background:#eff6ff}
 </section>
 
 <section class="card">
+<h2>🕒 Session Schedule</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Session</th><th>Start Time</th><th>End Time</th></tr></thead>
+<tbody>
+<tr><td>Period 1</td><td>8:00 AM</td><td>8:50 AM</td></tr>
+<tr><td>Period 2</td><td>8:50 AM</td><td>9:40 AM</td></tr>
+<tr><td>Period 3</td><td>9:40 AM</td><td>10:30 AM</td></tr>
+<tr><td>Period 4</td><td>10:50 AM</td><td>11:40 AM</td></tr>
+</tbody>
+</table>
+</div>
+<p class="small">The 10:30–10:50 AM break is not a session. Normal Mode uses the local clock to select the active period.</p>
+<div class="demo-controls" style="margin-top:14px;padding:12px;border:1px solid #d5dce5;border-radius:10px">
+    <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="demoModeToggle" onchange="toggleDemoMode(this.checked)" style="width:auto">
+        <strong>Enable Demo Mode</strong>
+    </label>
+    <p class="small" style="margin:6px 0">Use this when demonstrating outside college hours. QR scanning and face verification are still required.</p>
+    <div id="demoSessionControls" hidden>
+        <label for="demoSessionSelect">Choose demo period</label>
+        <select id="demoSessionSelect" onchange="updateDemoSession(this.value)">
+            <option value="Period 1">Period 1 (8:00–8:50 AM)</option>
+            <option value="Period 2">Period 2 (8:50–9:40 AM)</option>
+            <option value="Period 3">Period 3 (9:40–10:30 AM)</option>
+            <option value="Period 4">Period 4 (10:50–11:40 AM)</option>
+        </select>
+        <p id="demoModeStatus" class="small" role="status">Demo Mode is off.</p>
+    </div>
+</div>
+</section>
+
+<section class="card">
 <h2>📋 Attendance Records</h2>
 <label for="attendanceDate">Filter by date</label>
 <input type="date" id="attendanceDate" onchange="renderAttendance()">
@@ -131,7 +165,7 @@ th{background:#eff6ff}
 <button class="red" onclick="resetAttendance()">🔴 Reset Attendance</button>
 <div class="table-wrap">
 <table>
-<thead><tr><th>Date</th><th>Time</th><th>Register Number</th><th>Name</th><th>Status</th></tr></thead>
+<thead><tr><th>Date</th><th>Time</th><th>Session</th><th>Mode</th><th>Register Number</th><th>Name</th><th>Status</th></tr></thead>
 <tbody id="attendanceTable"></tbody>
 </table>
 </div>
@@ -154,6 +188,10 @@ const QR_TO_REG_OFFSET = 2117260029871;
 
 const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
 const FACE_THRESHOLD = 0.50;
+/* MiniFASNet V2: passive print/replay anti-spoof model (Apache-2.0 model card). */
+const ANTISPOOF_MODEL_URL = "https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx";
+const LIVENESS_THRESHOLD = 0.80;
+const LIVENESS_FRAMES_REQUIRED = 3;
 
 let students = readJSON(STUDENTS_KEY, []);
 let attendance = readJSON(ATTENDANCE_KEY, []);
@@ -161,6 +199,8 @@ let qrMappings = readJSON(MAPPINGS_KEY, {});
 let faceDescriptors = readJSON(FACES_KEY, {});
 
 let modelsLoaded = false;
+let antiSpoofSession = null;
+let livenessSamples = [];
 let qrScanner = null;
 let qrRunning = false;
 let qrBusy = false;
@@ -171,6 +211,9 @@ let faceBusy = false;
 let pendingFaceStudent = null;
 let facePurpose = "attendance";
 let consecutiveMatches = 0;
+let attendanceFailureMessage = "";
+let demoModeEnabled = false;
+let selectedDemoSession = "Period 1";
 
 function readJSON(key, fallback) {
     try {
@@ -205,6 +248,50 @@ function esc(value) {
 function today() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+/* Determine the active class period using the device's local clock.
+   End times are exclusive, so boundary times belong to the next period. */
+function getCurrentSession(date = new Date()) {
+    const minutes = date.getHours() * 60 + date.getMinutes();
+    const sessions = [
+        { id:"Period 1", start:8 * 60, end:8 * 60 + 50 },
+        { id:"Period 2", start:8 * 60 + 50, end:9 * 60 + 40 },
+        { id:"Period 3", start:9 * 60 + 40, end:10 * 60 + 30 },
+        { id:"Period 4", start:10 * 60 + 50, end:11 * 60 + 40 }
+    ];
+    return sessions.find(session => minutes >= session.start && minutes < session.end) || null;
+}
+
+function toggleDemoMode(enabled) {
+    demoModeEnabled = Boolean(enabled);
+    const controls = document.getElementById("demoSessionControls");
+    const status = document.getElementById("demoModeStatus");
+
+    controls.hidden = !demoModeEnabled;
+    if (demoModeEnabled) {
+        selectedDemoSession = document.getElementById("demoSessionSelect").value || "Period 1";
+        status.textContent = `Demo Mode ON — attendance will be recorded for ${selectedDemoSession}.`;
+        status.className = "small status success";
+    } else {
+        status.textContent = "Demo Mode OFF — attendance follows the actual college timetable.";
+        status.className = "small status";
+    }
+}
+
+function updateDemoSession(sessionId) {
+    selectedDemoSession = sessionId;
+    const status = document.getElementById("demoModeStatus");
+    status.textContent = `Demo Mode ON — attendance will be recorded for ${selectedDemoSession}.`;
+}
+
+function getAttendanceSession(date = new Date()) {
+    if (demoModeEnabled) {
+        return { id: selectedDemoSession, mode: "Demo" };
+    }
+
+    const session = getCurrentSession(date);
+    return session ? { id: session.id, mode: "Normal" } : null;
 }
 
 function setStatus(id, message, type="") {
@@ -672,10 +759,19 @@ async function loadModels() {
         document.getElementById("modelProgress").style.width = "70%";
 
         await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        document.getElementById("modelProgress").style.width = "82%";
+
+        if (typeof ort === "undefined") {
+            throw new Error("ONNX Runtime did not load.");
+        }
+        ort.env.wasm.numThreads = 1;
+        antiSpoofSession = await ort.InferenceSession.create(ANTISPOOF_MODEL_URL, {
+            executionProviders: ["wasm"]
+        });
         document.getElementById("modelProgress").style.width = "100%";
 
         modelsLoaded = true;
-        setStatus("modelStatus","Fast Face AI loaded successfully. Models are ready.","success");
+        setStatus("modelStatus","Face recognition and passive anti-spoof AI loaded. Liveness checks are enabled.","success");
     } catch (error) {
         console.error(error);
         setStatus("modelStatus","Model loading failed. Check your internet connection and reload.","error");
@@ -829,6 +925,7 @@ async function startFaceCamera() {
         faceLoopRunning = true;
         faceBusy = false;
         consecutiveMatches = 0;
+        livenessSamples = [];
 
         document.getElementById("startFaceBtn").disabled = true;
         document.getElementById("verifyBtn").disabled = false;
@@ -850,6 +947,8 @@ async function startFaceCamera() {
 async function stopFaceCamera() {
     faceLoopRunning = false;
     faceCameraRunning = false;
+    livenessSamples = [];
+    consecutiveMatches = 0;
 
     if (faceStream) {
         faceStream.getTracks().forEach(track => track.stop());
@@ -886,6 +985,87 @@ async function detectDescriptor() {
         .withFaceDescriptor();
 }
 
+/*
+ * MiniFASNet expects an 80x80 BGR face crop, scaled by 2.7 around the
+ * detected face, with pixel values in [0,1]. It predicts live / print / replay.
+ * This is a passive classifier, not a guarantee against every spoof attack.
+ */
+async function classifyFaceLiveness(detectionResult) {
+    if (!antiSpoofSession || !detectionResult || !detectionResult.detection) {
+        throw new Error("Anti-spoof model or face detection is unavailable.");
+    }
+
+    const video = document.getElementById("faceVideo");
+    const box = detectionResult.detection.box;
+    const side = Math.max(box.width, box.height) * 2.7;
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+    const sx = centerX - side / 2;
+    const sy = centerY - side / 2;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 80;
+    canvas.height = 80;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, 80, 80);
+    ctx.drawImage(video, sx, sy, side, side, 0, 0, 80, 80);
+
+    const pixels = ctx.getImageData(0, 0, 80, 80).data;
+    const input = new Float32Array(3 * 80 * 80);
+    for (let i = 0; i < 80 * 80; i++) {
+        input[i] = pixels[i * 4 + 2] / 255;                 // B
+        input[80 * 80 + i] = pixels[i * 4 + 1] / 255;      // G
+        input[2 * 80 * 80 + i] = pixels[i * 4] / 255;      // R
+    }
+
+    const inputName = antiSpoofSession.inputNames[0];
+    const tensor = new ort.Tensor("float32", input, [1, 3, 80, 80]);
+    const outputMap = await antiSpoofSession.run({ [inputName]: tensor });
+    const output = outputMap[antiSpoofSession.outputNames[0]].data;
+    if (!output || output.length < 3) throw new Error("Unexpected anti-spoof model output.");
+
+    // The published model card specifies softmax probabilities; support logits too.
+    const raw = [Number(output[0]), Number(output[1]), Number(output[2])];
+    const rawTotal = raw.reduce((a, b) => a + b, 0);
+    let probabilities;
+    if (raw.every(v => v >= 0 && v <= 1) && Math.abs(rawTotal - 1) < 0.02) {
+        probabilities = raw;
+    } else {
+        const maxValue = Math.max(...raw);
+        const exps = raw.map(v => Math.exp(v - maxValue));
+        const total = exps.reduce((a, b) => a + b, 0);
+        probabilities = exps.map(v => v / total);
+    }
+
+    return {
+        live: probabilities[0],
+        print: probabilities[1],
+        replay: probabilities[2]
+    };
+}
+
+async function checkLiveSequence() {
+    const scores = [];
+    for (let i = 0; i < LIVENESS_FRAMES_REQUIRED; i++) {
+        const result = await detectDescriptor();
+        if (!result) return { passed: false, reason: "Face not clear across the liveness check." };
+        const score = await classifyFaceLiveness(result);
+        scores.push(score);
+        if (i < LIVENESS_FRAMES_REQUIRED - 1) {
+            await new Promise(resolve => setTimeout(resolve, 180));
+        }
+    }
+
+    const averageLive = scores.reduce((sum, item) => sum + item.live, 0) / scores.length;
+    const averageSpoof = scores.reduce((sum, item) => sum + item.print + item.replay, 0) / scores.length;
+    return {
+        passed: averageLive >= LIVENESS_THRESHOLD,
+        live: averageLive,
+        spoof: averageSpoof
+    };
+}
+
 async function faceDetectionLoop() {
     while (faceLoopRunning && faceCameraRunning) {
         if (!faceBusy) {
@@ -895,9 +1075,31 @@ async function faceDetectionLoop() {
                 const result = await detectDescriptor();
 
                 if (result && facePurpose === "attendance") {
-                    await processFaceMatch(Array.from(result.descriptor));
+                    const liveness = await classifyFaceLiveness(result);
+                    livenessSamples.push({
+                        live: liveness.live,
+                        spoof: liveness.print + liveness.replay,
+                        descriptor: Array.from(result.descriptor)
+                    });
+                    if (livenessSamples.length > LIVENESS_FRAMES_REQUIRED) livenessSamples.shift();
+
+                    if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
+                        const avgLive = livenessSamples.reduce((sum, item) => sum + item.live, 0) / LIVENESS_FRAMES_REQUIRED;
+                        if (avgLive >= LIVENESS_THRESHOLD) {
+                            const latestDescriptor = livenessSamples[livenessSamples.length - 1].descriptor;
+                            livenessSamples = [];
+                            await processFaceMatch(latestDescriptor);
+                        } else {
+                            consecutiveMatches = 0;
+                            livenessSamples = [];
+                            setStatus("faceStatus","Liveness check was uncertain. Keep your face naturally visible and try again.","warning");
+                        }
+                    } else {
+                        setStatus("faceStatus",`Checking passive liveness... ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames`,"warning");
+                    }
                 } else if (!result && facePurpose === "attendance") {
                     consecutiveMatches = 0;
+                    livenessSamples = [];
                     setStatus("faceStatus","No clear face detected. Look at the camera.","warning");
                 }
             } catch (error) {
@@ -953,7 +1155,7 @@ async function processFaceMatch(descriptor) {
                 "faceStatus",
                 recorded
                     ? `✅ Verified. Attendance marked for ${student.name}.`
-                    : `Attendance already marked today for ${student.name}.`,
+                    : (attendanceFailureMessage || `Attendance could not be marked for ${student.name}.`),
                 recorded ? "success" : "warning"
             );
 
@@ -1030,6 +1232,17 @@ async function manualFaceAction() {
         }
 
         const descriptor = Array.from(result.descriptor);
+        const liveness = await checkLiveSequence();
+        if (!liveness.passed) {
+            setStatus(
+                "faceStatus",
+                liveness.live === undefined
+                    ? (liveness.reason || "Could not confirm a live face. Try again.")
+                    : `Liveness not confirmed (live score ${(liveness.live * 100).toFixed(0)}%). Please try again.`,
+                "warning"
+            );
+            return;
+        }
 
         if (facePurpose === "registration") {
             if (!pendingFaceStudent) {
@@ -1072,7 +1285,7 @@ async function manualFaceAction() {
 
             setStatus(
                 "faceStatus",
-                recorded ? "Face verified and attendance marked." : "Attendance already marked today.",
+                recorded ? "Face verified and attendance marked." : (attendanceFailureMessage || "Attendance could not be marked."),
                 recorded ? "success" : "warning"
             );
 
@@ -1095,14 +1308,28 @@ async function manualFaceAction() {
    ====================================================== */
 
 function recordAttendance(student) {
-    if (!student) return false;
+    attendanceFailureMessage = "";
+    if (!student) {
+        attendanceFailureMessage = "No student was selected.";
+        return false;
+    }
+
+    const session = getAttendanceSession();
+    if (!session) {
+        attendanceFailureMessage = "Outside class periods. Attendance can only be marked during Period 1 (8:00–8:50 AM), Period 2 (8:50–9:40 AM), Period 3 (9:40–10:30 AM), or Period 4 (10:50–11:40 AM). The 10:30–10:50 AM break is excluded.";
+        renderAttendance();
+        updateStats();
+        return false;
+    }
 
     const exists = attendance.some(a =>
         norm(a.registerNumber) === norm(student.registerNumber) &&
-        a.date === today()
+        a.date === today() &&
+        a.session === session.id
     );
 
     if (exists) {
+        attendanceFailureMessage = `Attendance already marked for ${session.id} today for ${student.name}.`;
         renderAttendance();
         updateStats();
         return false;
@@ -1111,6 +1338,8 @@ function recordAttendance(student) {
     attendance.push({
         date:today(),
         time:new Date().toLocaleTimeString(),
+        session:session.id,
+        mode:session.mode,
         registerNumber:student.registerNumber,
         name:student.name,
         status:"Present"
@@ -1134,10 +1363,12 @@ function renderAttendance() {
     body.innerHTML = list.length ? list.map(a => `<tr>
         <td>${esc(a.date)}</td>
         <td>${esc(a.time)}</td>
+        <td>${esc(a.session || "—")}</td>
+        <td>${esc(a.mode || "Normal")}</td>
         <td>${esc(a.registerNumber)}</td>
         <td>${esc(a.name)}</td>
         <td>${esc(a.status)}</td>
-    </tr>`).join("") : '<tr><td colspan="5">No attendance records found.</td></tr>';
+    </tr>`).join("") : '<tr><td colspan="7">No attendance records found.</td></tr>';
 }
 
 function clearDateFilter() {
@@ -1164,10 +1395,10 @@ function downloadCSV(filename,rows) {
 }
 
 function exportAttendance() {
-    const rows = [["Date","Time","RegisterNumber","Name","Status"]];
+    const rows = [["Date","Time","Session","Mode","RegisterNumber","Name","Status"]];
 
     attendance.forEach(a => rows.push([
-        a.date,a.time,a.registerNumber,a.name,a.status
+        a.date,a.time,a.session || "",a.mode || "Normal",a.registerNumber,a.name,a.status
     ]));
 
     downloadCSV("smart_qr_attendance.csv",rows);
