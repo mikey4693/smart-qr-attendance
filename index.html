@@ -190,7 +190,7 @@ const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
 const FACE_THRESHOLD = 0.50;
 /* MiniFASNet V2: passive print/replay anti-spoof model (Apache-2.0 model card). */
 const ANTISPOOF_MODEL_URL = "https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx";
-const LIVENESS_THRESHOLD = 0.60;
+const LIVENESS_THRESHOLD = 0.45;
 const LIVENESS_FRAMES_REQUIRED = 3;
 
 let students = readJSON(STUDENTS_KEY, []);
@@ -1038,11 +1038,11 @@ async function classifyFaceLiveness(detectionResult) {
         probabilities = exps.map(v => v / total);
     }
 
-    // MiniFASNet V2 follows the upstream Silent-Face class order:
-    // class 0 = attack, class 1 = bona-fide/live, class 2 = attack.
+    // This ONNX model card documents output order as:
+    // class 0 = live, class 1 = print attack, class 2 = replay attack.
     return {
-        print: probabilities[0],
-        live: probabilities[1],
+        live: probabilities[0],
+        print: probabilities[1],
         replay: probabilities[2]
     };
 }
