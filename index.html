@@ -28,6 +28,7 @@ label{font-weight:bold}
 .error{background:#fef2f2;border-color:#dc2626}
 .warning{background:#fffbeb;border-color:#d97706}
 .liveness-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.liveness-score{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px;text-align:center}.liveness-score strong{display:block;font-size:20px}.liveness-score span{font-size:12px;color:#64748b}@media(max-width:420px){.liveness-grid{grid-template-columns:1fr}}
+.liveness-crop-row{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}.liveness-crop-row canvas{width:120px;height:120px;image-rendering:auto;border:1px solid #cbd5e1;border-radius:8px;background:#111827}.liveness-crop-meta{font-size:12px;color:#64748b;line-height:1.5}
 .small{font-size:13px;color:#64748b;line-height:1.5}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:15px}
 .stat{background:white;border-radius:10px;padding:14px 5px;text-align:center}
@@ -96,6 +97,10 @@ th{background:#eff6ff}
   <div class="liveness-score"><strong id="replayScore">—</strong><span>Replay (class 2)</span></div>
 </div>
 <p id="livenessExtra" class="small">Current threshold: 45%. Model output order is based on the model card.</p>
+<div class="liveness-crop-row">
+  <canvas id="livenessCropPreview" width="80" height="80" aria-label="80 by 80 face crop sent to anti-spoof model"></canvas>
+  <div id="livenessCropMeta" class="liveness-crop-meta">The model input crop will appear here when a face is detected.</div>
+</div>
 </div>
 </section>
 
@@ -1008,19 +1013,53 @@ async function classifyFaceLiveness(detectionResult) {
 
     const video = document.getElementById("faceVideo");
     const box = detectionResult.detection.box;
-    const side = Math.max(box.width, box.height) * 2.7;
+    const frameWidth = video.videoWidth;
+    const frameHeight = video.videoHeight;
+    if (!frameWidth || !frameHeight) {
+        throw new Error("Camera frame is not ready for liveness analysis.");
+    }
+
+    /*
+     * Match the reference MiniFASNet crop procedure:
+     * - expand the detected rectangle by up to 2.7x around its centre
+     * - preserve the face-box aspect ratio (do not force a square crop)
+     * - reduce the scale if needed so the crop fits inside the camera frame
+     * - resize that crop to 80x80, then convert RGBA -> BGR and divide by 255
+     */
+    const scale = Math.min(
+        (frameHeight - 1) / Math.max(1, box.height),
+        (frameWidth - 1) / Math.max(1, box.width),
+        2.7
+    );
+    const cropWidth = box.width * scale;
+    const cropHeight = box.height * scale;
     const centerX = box.x + box.width / 2;
     const centerY = box.y + box.height / 2;
-    const sx = centerX - side / 2;
-    const sy = centerY - side / 2;
+
+    const x1 = Math.max(0, Math.floor(centerX - cropWidth / 2));
+    const y1 = Math.max(0, Math.floor(centerY - cropHeight / 2));
+    const x2 = Math.min(frameWidth - 1, Math.floor(centerX + cropWidth / 2));
+    const y2 = Math.min(frameHeight - 1, Math.floor(centerY + cropHeight / 2));
+    const sourceWidth = Math.max(1, x2 - x1 + 1);
+    const sourceHeight = Math.max(1, y2 - y1 + 1);
 
     const canvas = document.createElement("canvas");
     canvas.width = 80;
     canvas.height = 80;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, 80, 80);
-    ctx.drawImage(video, sx, sy, side, side, 0, 0, 80, 80);
+    ctx.drawImage(video, x1, y1, sourceWidth, sourceHeight, 0, 0, 80, 80);
+
+    // Show the exact resized crop used for inference, so crop errors are visible.
+    const preview = document.getElementById("livenessCropPreview");
+    if (preview) {
+        const previewCtx = preview.getContext("2d");
+        previewCtx.clearRect(0, 0, 80, 80);
+        previewCtx.drawImage(canvas, 0, 0);
+    }
+    const cropMeta = document.getElementById("livenessCropMeta");
+    if (cropMeta) {
+        cropMeta.textContent = `Model crop: ${sourceWidth} × ${sourceHeight} px from ${frameWidth} × ${frameHeight} camera frame; scale ${scale.toFixed(2)}×; resized to 80 × 80.`;
+    }
 
     const pixels = ctx.getImageData(0, 0, 80, 80).data;
     const input = new Float32Array(3 * 80 * 80);
@@ -1036,7 +1075,8 @@ async function classifyFaceLiveness(detectionResult) {
     const output = outputMap[antiSpoofSession.outputNames[0]].data;
     if (!output || output.length < 3) throw new Error("Unexpected anti-spoof model output.");
 
-    // The published model card specifies softmax probabilities; support logits too.
+    // The model card for this exact ONNX file documents [live, print, replay].
+    // ONNX output is converted to probabilities with softmax when it is logits.
     const raw = [Number(output[0]), Number(output[1]), Number(output[2])];
     const rawTotal = raw.reduce((a, b) => a + b, 0);
     let probabilities;
@@ -1049,13 +1089,9 @@ async function classifyFaceLiveness(detectionResult) {
         probabilities = exps.map(v => v / total);
     }
 
-    // The model card for this exact ONNX file documents output order as:
-    // class 0 = live, class 1 = print attack, class 2 = replay attack.
-    // Show all three values so we can diagnose genuine-camera false rejections.
     const live = probabilities[0];
     const print = probabilities[1];
     const replay = probabilities[2];
-
     const pct = value => `${(value * 100).toFixed(1)}%`;
     const liveEl = document.getElementById("liveScore");
     const printEl = document.getElementById("printScore");
@@ -1068,7 +1104,7 @@ async function classifyFaceLiveness(detectionResult) {
         extraEl.textContent =
             `Raw model output: [${raw.map(v => Number(v).toFixed(4)).join(", ")}] | ` +
             `Threshold: ${(LIVENESS_THRESHOLD * 100).toFixed(0)}% | ` +
-            `Live class: 0`;
+            `Input: BGR / 255, NCHW [1,3,80,80] | Classes: live / print / replay`;
     }
 
     return { live, print, replay };
