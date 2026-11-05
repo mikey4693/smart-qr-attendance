@@ -92,10 +92,11 @@ th{background:#eff6ff}
 <strong>Anti-spoof diagnostic scores</strong>
 <p class="small">Waiting for a face frame. These scores help us diagnose the model; they are not proof that a person is live.</p>
 <div class="liveness-grid">
-  <div class="liveness-score"><strong id="liveScore">—</strong><span>Live (class 0)</span></div>
-  <div class="liveness-score"><strong id="printScore">—</strong><span>Print (class 1)</span></div>
-  <div class="liveness-score"><strong id="replayScore">—</strong><span>Replay (class 2)</span></div>
+  <div class="liveness-score"><strong id="liveScore">—</strong><span>Class 0</span></div>
+  <div class="liveness-score"><strong id="printScore">—</strong><span>Class 1</span></div>
+  <div class="liveness-score"><strong id="replayScore">—</strong><span>Class 2</span></div>
 </div>
+<div class="small" style="margin-top:8px">Input scale: <select id="asScale"><option value="255">raw 0-255 (original repo)</option><option value="1">0-1 (divide by 255)</option></select> Live class: <select id="asLiveIdx"><option value="1">class 1 (original repo)</option><option value="0">class 0</option></select></div>
 <p id="livenessExtra" class="small">Current threshold: 45%. Model output order is based on the model card.</p>
 <div class="liveness-crop-row">
   <canvas id="livenessCropPreview" width="80" height="80" aria-label="80 by 80 face crop sent to anti-spoof model"></canvas>
@@ -1072,12 +1073,14 @@ async function classifyFaceLiveness(detectionResult) {
         cropMeta.textContent = `Requested crop: ${cropWidth.toFixed(0)} × ${cropHeight.toFixed(0)} px at 2.70× from ${frameWidth} × ${frameHeight}; visible source: ${sourceWidth.toFixed(0)} × ${sourceHeight.toFixed(0)} px; out-of-frame area padded; resized to 80 × 80.`;
     }
 
+    const scaleSel = document.getElementById("asScale");
+    const inScale = scaleSel && scaleSel.value === "1" ? 1 / 255 : 1;
     const pixels = ctx.getImageData(0, 0, 80, 80).data;
     const input = new Float32Array(3 * 80 * 80);
     for (let i = 0; i < 80 * 80; i++) {
-        input[i] = pixels[i * 4 + 2] / 255;                 // B
-        input[80 * 80 + i] = pixels[i * 4 + 1] / 255;      // G
-        input[2 * 80 * 80 + i] = pixels[i * 4] / 255;      // R
+        input[i] = pixels[i * 4 + 2] * inScale;                 // B
+        input[80 * 80 + i] = pixels[i * 4 + 1] * inScale;      // G
+        input[2 * 80 * 80 + i] = pixels[i * 4] * inScale;      // R
     }
 
     const inputName = antiSpoofSession.inputNames[0];
@@ -1100,22 +1103,25 @@ async function classifyFaceLiveness(detectionResult) {
         probabilities = exps.map(v => v / total);
     }
 
-    const live = probabilities[0];
-    const print = probabilities[1];
-    const replay = probabilities[2];
+    const idxSel = document.getElementById("asLiveIdx");
+    const liveIdx = idxSel ? Number(idxSel.value) : 1;
+    const spoofIdx = [0, 1, 2].filter(i => i !== liveIdx);
+    const live = probabilities[liveIdx];
+    const print = probabilities[spoofIdx[0]];
+    const replay = probabilities[spoofIdx[1]];
     const pct = value => `${(value * 100).toFixed(1)}%`;
     const liveEl = document.getElementById("liveScore");
     const printEl = document.getElementById("printScore");
     const replayEl = document.getElementById("replayScore");
     const extraEl = document.getElementById("livenessExtra");
-    if (liveEl) liveEl.textContent = pct(live);
-    if (printEl) printEl.textContent = pct(print);
-    if (replayEl) replayEl.textContent = pct(replay);
+    if (liveEl) liveEl.textContent = pct(probabilities[0]);
+    if (printEl) printEl.textContent = pct(probabilities[1]);
+    if (replayEl) replayEl.textContent = pct(probabilities[2]);
     if (extraEl) {
         extraEl.textContent =
             `Raw model output: [${raw.map(v => Number(v).toFixed(4)).join(", ")}] | ` +
             `Threshold: ${(LIVENESS_THRESHOLD * 100).toFixed(0)}% | ` +
-            `Input: BGR / 255, NCHW [1,3,80,80] | Classes: live / print / replay`;
+            `Input: BGR, scale x${inScale}, NCHW [1,3,80,80] | Live = class ${liveIdx}`;
     }
 
     return { live, print, replay };
