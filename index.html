@@ -97,7 +97,7 @@ th{background:#eff6ff}
   <div class="liveness-score"><strong id="replayScore">—</strong><span>Class 2</span></div>
 </div>
 <div class="small" style="margin-top:8px">Input scale: <select id="asScale"><option value="255">raw 0-255 (original repo)</option><option value="1">0-1 (divide by 255)</option></select> Channel order: <select id="asOrder"><option value="bgr">BGR (original repo)</option><option value="rgb">RGB</option></select> Crop: <select id="asCrop"><option value="clamp">fit in frame (original repo)</option><option value="pad">black padding</option></select> Live class: <select id="asLiveIdx"><option value="1">class 1 (original repo)</option><option value="0">class 0</option></select></div>
-<p id="livenessExtra" class="small">Current threshold: 45%. Model output order is based on the model card.</p>
+<p id="livenessExtra" class="small">Current threshold: 90% (every frame must pass). Model output order is based on the model card.</p>
 <div class="liveness-crop-row">
   <canvas id="livenessCropPreview" width="80" height="80" aria-label="80 by 80 face crop sent to anti-spoof model"></canvas>
   <div id="livenessCropMeta" class="liveness-crop-meta">The model input crop will appear here when a face is detected.</div>
@@ -207,7 +207,7 @@ const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
 const FACE_THRESHOLD = 0.50;
 /* MiniFASNet V2: passive print/replay anti-spoof model (Apache-2.0 model card). */
 const ANTISPOOF_MODEL_URL = "https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx";
-const LIVENESS_THRESHOLD = 0.45;
+const LIVENESS_THRESHOLD = 0.90; // real face scored 99.7%, phone screen 63% in testing
 const LIVENESS_FRAMES_REQUIRED = 3;
 
 let students = readJSON(STUDENTS_KEY, []);
@@ -1157,8 +1157,9 @@ async function checkLiveSequence() {
 
     const averageLive = scores.reduce((sum, item) => sum + item.live, 0) / scores.length;
     const averageSpoof = scores.reduce((sum, item) => sum + item.print + item.replay, 0) / scores.length;
+    const minLive = Math.min(...scores.map(item => item.live));
     return {
-        passed: averageLive >= LIVENESS_THRESHOLD && averageLive > averageSpoof / 2,
+        passed: minLive >= LIVENESS_THRESHOLD,
         live: averageLive,
         spoof: averageSpoof
     };
@@ -1184,7 +1185,8 @@ async function faceDetectionLoop() {
                     if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
                         const avgLive = livenessSamples.reduce((sum, item) => sum + item.live, 0) / LIVENESS_FRAMES_REQUIRED;
                         const avgSpoof = livenessSamples.reduce((sum, item) => sum + item.spoof, 0) / LIVENESS_FRAMES_REQUIRED;
-                        if (avgLive >= LIVENESS_THRESHOLD && avgLive > avgSpoof / 2) {
+                        const minLive = Math.min(...livenessSamples.map(item => item.live));
+                        if (minLive >= LIVENESS_THRESHOLD) {
                             const latestDescriptor = livenessSamples[livenessSamples.length - 1].descriptor;
                             livenessSamples = [];
                             await processFaceMatch(latestDescriptor);
