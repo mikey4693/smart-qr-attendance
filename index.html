@@ -1020,36 +1020,47 @@ async function classifyFaceLiveness(detectionResult) {
     }
 
     /*
-     * Match the reference MiniFASNet crop procedure:
-     * - expand the detected rectangle by up to 2.7x around its centre
-     * - preserve the face-box aspect ratio (do not force a square crop)
-     * - reduce the scale if needed so the crop fits inside the camera frame
-     * - resize that crop to 80x80, then convert RGBA -> BGR and divide by 255
+     * Build the full 2.7x crop around the detected face centre.
+     * Do not shrink the crop merely because it crosses a camera-frame edge:
+     * instead, keep the requested crop size and pad out-of-frame areas with
+     * black pixels. This preserves the model's intended crop scale.
      */
-    const scale = Math.min(
-        (frameHeight - 1) / Math.max(1, box.height),
-        (frameWidth - 1) / Math.max(1, box.width),
-        2.7
-    );
-    const cropWidth = box.width * scale;
-    const cropHeight = box.height * scale;
+    const scale = 2.7;
+    const cropWidth = Math.max(1, box.width * scale);
+    const cropHeight = Math.max(1, box.height * scale);
     const centerX = box.x + box.width / 2;
     const centerY = box.y + box.height / 2;
+    const cropX = centerX - cropWidth / 2;
+    const cropY = centerY - cropHeight / 2;
 
-    const x1 = Math.max(0, Math.floor(centerX - cropWidth / 2));
-    const y1 = Math.max(0, Math.floor(centerY - cropHeight / 2));
-    const x2 = Math.min(frameWidth - 1, Math.floor(centerX + cropWidth / 2));
-    const y2 = Math.min(frameHeight - 1, Math.floor(centerY + cropHeight / 2));
-    const sourceWidth = Math.max(1, x2 - x1 + 1);
-    const sourceHeight = Math.max(1, y2 - y1 + 1);
+    // Intersection of the requested crop with the real camera frame.
+    const sourceX1 = Math.max(0, cropX);
+    const sourceY1 = Math.max(0, cropY);
+    const sourceX2 = Math.min(frameWidth, cropX + cropWidth);
+    const sourceY2 = Math.min(frameHeight, cropY + cropHeight);
+    const sourceWidth = Math.max(0, sourceX2 - sourceX1);
+    const sourceHeight = Math.max(0, sourceY2 - sourceY1);
 
     const canvas = document.createElement("canvas");
     canvas.width = 80;
     canvas.height = 80;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(video, x1, y1, sourceWidth, sourceHeight, 0, 0, 80, 80);
+    // Explicitly initialise the padded area; off-frame regions stay black.
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, 80, 80);
+    if (sourceWidth > 0 && sourceHeight > 0) {
+        const destX = ((sourceX1 - cropX) / cropWidth) * 80;
+        const destY = ((sourceY1 - cropY) / cropHeight) * 80;
+        const destWidth = (sourceWidth / cropWidth) * 80;
+        const destHeight = (sourceHeight / cropHeight) * 80;
+        ctx.drawImage(
+            video,
+            sourceX1, sourceY1, sourceWidth, sourceHeight,
+            destX, destY, destWidth, destHeight
+        );
+    }
 
-    // Show the exact resized crop used for inference, so crop errors are visible.
+    // Show the exact padded 80x80 tensor image used for inference.
     const preview = document.getElementById("livenessCropPreview");
     if (preview) {
         const previewCtx = preview.getContext("2d");
@@ -1058,7 +1069,7 @@ async function classifyFaceLiveness(detectionResult) {
     }
     const cropMeta = document.getElementById("livenessCropMeta");
     if (cropMeta) {
-        cropMeta.textContent = `Model crop: ${sourceWidth} × ${sourceHeight} px from ${frameWidth} × ${frameHeight} camera frame; scale ${scale.toFixed(2)}×; resized to 80 × 80.`;
+        cropMeta.textContent = `Requested crop: ${cropWidth.toFixed(0)} × ${cropHeight.toFixed(0)} px at 2.70× from ${frameWidth} × ${frameHeight}; visible source: ${sourceWidth.toFixed(0)} × ${sourceHeight.toFixed(0)} px; out-of-frame area padded; resized to 80 × 80.`;
     }
 
     const pixels = ctx.getImageData(0, 0, 80, 80).data;
