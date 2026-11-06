@@ -208,7 +208,7 @@ const FACE_THRESHOLD = 0.50;
 /* MiniFASNet V2: passive print/replay anti-spoof model (Apache-2.0 model card). */
 const ANTISPOOF_MODEL_URL = "https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx";
 const LIVENESS_THRESHOLD = 0.90; // real face scored 99.7%, phone screen 63% in testing
-const LIVENESS_FRAMES_REQUIRED = 3;
+const LIVENESS_FRAMES_REQUIRED = 5;
 
 let students = readJSON(STUDENTS_KEY, []);
 let attendance = readJSON(ATTENDANCE_KEY, []);
@@ -1151,7 +1151,7 @@ async function checkLiveSequence() {
         const score = await classifyFaceLiveness(result);
         scores.push(score);
         if (i < LIVENESS_FRAMES_REQUIRED - 1) {
-            await new Promise(resolve => setTimeout(resolve, 180));
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
     }
 
@@ -1192,7 +1192,7 @@ async function faceDetectionLoop() {
                             await processFaceMatch(latestDescriptor);
                         } else {
                             consecutiveMatches = 0;
-                            livenessSamples = [];
+                            // Rolling window: keep the frames, the oldest drops out on the next one.
                             setStatus("faceStatus","Live-face confidence was too low. Face the camera in even lighting and try again.","warning");
                         }
                     } else {
@@ -1210,7 +1210,7 @@ async function faceDetectionLoop() {
             }
         }
 
-        await new Promise(resolve => setTimeout(resolve,180));
+        await new Promise(resolve => setTimeout(resolve,100));
     }
 }
 
