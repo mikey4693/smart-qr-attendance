@@ -228,6 +228,7 @@ let faceBusy = false;
 let pendingFaceStudent = null;
 let facePurpose = "attendance";
 let consecutiveMatches = 0;
+let missedFaceFrames = 0;
 let attendanceFailureMessage = "";
 let demoModeEnabled = false;
 let selectedDemoSession = "Period 1";
@@ -1173,6 +1174,7 @@ async function faceDetectionLoop() {
             try {
                 const result = await detectDescriptor();
 
+                if (result) missedFaceFrames = 0;
                 if (result && facePurpose === "attendance") {
                     const liveness = await classifyFaceLiveness(result);
                     livenessSamples.push({
@@ -1188,7 +1190,7 @@ async function faceDetectionLoop() {
                         const minLive = Math.min(...livenessSamples.map(item => item.live));
                         if (minLive >= LIVENESS_THRESHOLD) {
                             const latestDescriptor = livenessSamples[livenessSamples.length - 1].descriptor;
-                            livenessSamples = [];
+                            // Keep the rolling window: the 2nd face-match confirmation then needs only 1 more frame.
                             await processFaceMatch(latestDescriptor);
                         } else {
                             consecutiveMatches = 0;
@@ -1199,9 +1201,13 @@ async function faceDetectionLoop() {
                         setStatus("faceStatus",`Checking passive liveness... ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames`,"warning");
                     }
                 } else if (!result && facePurpose === "attendance") {
-                    consecutiveMatches = 0;
-                    livenessSamples = [];
-                    setStatus("faceStatus","No clear face detected. Look at the camera.","warning");
+                    missedFaceFrames++;
+                    // One or two dropped detections are normal on phones; only reset after 3 in a row.
+                    if (missedFaceFrames >= 3) {
+                        consecutiveMatches = 0;
+                        livenessSamples = [];
+                        setStatus("faceStatus","No clear face detected. Look at the camera.","warning");
+                    }
                 }
             } catch (error) {
                 console.error(error);
