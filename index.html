@@ -90,7 +90,7 @@ th{background:#eff6ff}
 <section class="card">
 <h2>🎓 Student Database</h2>
 <label for="csvFile">Import student CSV</label>
-<input type="file" id="csvFile" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values">
+<input type="file" id="csvFile" accept=".csv,text/csv">
 <button onclick="importCSV()">Import CSV</button>
 <p class="small">Recommended headers: RegisterNumber, Name, Department, Badge, QRID. Register number and name are required.</p>
 
@@ -529,27 +529,24 @@ function updateStats() {
 function parseCSV(text) {
     const rows = [];
     let row = [], field = "", quoted = false;
-    text = String(text || "").replace(/^\uFEFF/, "");
 
-    // Google Sheets can export TSV. Detect tabs from the header row;
-    // otherwise retain normal comma-separated CSV behavior.
-    const firstLine = text.split(/\r?\n/, 1)[0] || "";
-    const delimiter = firstLine.includes("\t") ? "\t" : ",";
+    text = text.replace(/^\uFEFF/, "");
 
-    for (let i = 0; i < text.length; i++) {
+    for (let i=0; i<text.length; i++) {
         const c = text[i];
+
         if (c === '"') {
-            if (quoted && text[i + 1] === '"') {
+            if (quoted && text[i+1] === '"') {
                 field += '"';
                 i++;
             } else {
                 quoted = !quoted;
             }
-        } else if (c === delimiter && !quoted) {
+        } else if (c === "," && !quoted) {
             row.push(field.trim());
             field = "";
         } else if ((c === "\n" || c === "\r") && !quoted) {
-            if (c === "\r" && text[i + 1] === "\n") i++;
+            if (c === "\r" && text[i+1] === "\n") i++;
             row.push(field.trim());
             if (row.some(x => x !== "")) rows.push(row);
             row = [];
@@ -558,6 +555,7 @@ function parseCSV(text) {
             field += c;
         }
     }
+
     row.push(field.trim());
     if (row.some(x => x !== "")) rows.push(row);
     return rows;
@@ -583,7 +581,7 @@ function importCSV() {
             const rows = parseCSV(event.target.result);
 
             if (rows.length < 2) {
-                alert("No student records found. Please choose a CSV or TSV file with a header row and student records.");
+                alert("No student records found in this CSV.");
                 return;
             }
 
@@ -600,7 +598,7 @@ function importCSV() {
             const qr = col(["qrid","qr","qrvalue","qrnumber","qrcode","qrdata"]);
 
             if (reg < 0 || name < 0) {
-                alert("File needs Register Number and Student Name columns. CSV and TSV files are supported.");
+                alert("CSV needs register number and name columns.");
                 return;
             }
 
