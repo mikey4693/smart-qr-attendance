@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Smart QR Attendance</title>
+<title>Smart QR Attendance - Liveness Diagnostics</title>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 
 <style>
 *{box-sizing:border-box}
@@ -26,6 +27,8 @@ label{font-weight:bold}
 .success{background:#f0fdf4;border-color:#16a34a}
 .error{background:#fef2f2;border-color:#dc2626}
 .warning{background:#fffbeb;border-color:#d97706}
+.liveness-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.liveness-score{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px;text-align:center}.liveness-score strong{display:block;font-size:20px}.liveness-score span{font-size:12px;color:#64748b}@media(max-width:420px){.liveness-grid{grid-template-columns:1fr}}
+.liveness-crop-row{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}.liveness-crop-row canvas{width:120px;height:120px;image-rendering:auto;border:1px solid #cbd5e1;border-radius:8px;background:#111827}.liveness-crop-meta{font-size:12px;color:#64748b;line-height:1.5}
 .small{font-size:13px;color:#64748b;line-height:1.5}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:15px}
 .stat{background:white;border-radius:10px;padding:14px 5px;text-align:center}
@@ -79,12 +82,27 @@ th{background:#eff6ff}
 
 <section class="card">
 <h2>👤 Face Verification</h2>
-<p class="small">After a valid QR match, the face camera opens automatically.</p>
+<p class="small">After a valid QR match, the face camera opens automatically. Passive liveness checks a short sequence of frames for print/screen spoofing before face matching. It may still make mistakes and must be tested.</p>
 <video id="faceVideo" autoplay muted playsinline></video>
 <button id="startFaceBtn" onclick="startFaceCamera()">Start Face Camera</button>
 <button class="green" id="verifyBtn" onclick="manualFaceAction()" disabled>Verify / Register Face</button>
 <button class="gray" onclick="stopFaceCamera()">Stop Face Camera</button>
 <div id="faceStatus" class="status">Waiting for a student.</div>
+<div id="livenessDiagnostics" class="status" aria-live="polite">
+<strong>Anti-spoof diagnostic scores</strong>
+<p class="small">Waiting for a face frame. These scores help us diagnose the model; they are not proof that a person is live.</p>
+<div class="liveness-grid">
+  <div class="liveness-score"><strong id="liveScore">—</strong><span>Class 0</span></div>
+  <div class="liveness-score"><strong id="printScore">—</strong><span>Class 1</span></div>
+  <div class="liveness-score"><strong id="replayScore">—</strong><span>Class 2</span></div>
+</div>
+<div class="small" style="margin-top:8px">Input scale: <select id="asScale"><option value="255">raw 0-255 (original repo)</option><option value="1">0-1 (divide by 255)</option></select> Channel order: <select id="asOrder"><option value="bgr">BGR (original repo)</option><option value="rgb">RGB</option></select> Crop: <select id="asCrop"><option value="clamp">fit in frame (original repo)</option><option value="pad">black padding</option></select> Live class: <select id="asLiveIdx"><option value="1">class 1 (original repo)</option><option value="0">class 0</option></select></div>
+<p id="livenessExtra" class="small">Current threshold: 90% (every frame must pass). Model output order is based on the model card.</p>
+<div class="liveness-crop-row">
+  <canvas id="livenessCropPreview" width="80" height="80" aria-label="80 by 80 face crop sent to anti-spoof model"></canvas>
+  <div id="livenessCropMeta" class="liveness-crop-meta">The model input crop will appear here when a face is detected.</div>
+</div>
+</div>
 </section>
 
 <section class="card">
@@ -122,6 +140,39 @@ th{background:#eff6ff}
 </section>
 
 <section class="card">
+<h2>🕒 Session Schedule</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Session</th><th>Start Time</th><th>End Time</th></tr></thead>
+<tbody>
+<tr><td>Period 1</td><td>8:00 AM</td><td>8:50 AM</td></tr>
+<tr><td>Period 2</td><td>8:50 AM</td><td>9:40 AM</td></tr>
+<tr><td>Period 3</td><td>9:40 AM</td><td>10:30 AM</td></tr>
+<tr><td>Period 4</td><td>10:50 AM</td><td>11:40 AM</td></tr>
+</tbody>
+</table>
+</div>
+<p class="small">The 10:30–10:50 AM break is not a session. Normal Mode uses the local clock to select the active period.</p>
+<div class="demo-controls" style="margin-top:14px;padding:12px;border:1px solid #d5dce5;border-radius:10px">
+    <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="demoModeToggle" onchange="toggleDemoMode(this.checked)" style="width:auto">
+        <strong>Enable Demo Mode</strong>
+    </label>
+    <p class="small" style="margin:6px 0">Use this when demonstrating outside college hours. QR scanning and face verification are still required.</p>
+    <div id="demoSessionControls" hidden>
+        <label for="demoSessionSelect">Choose demo period</label>
+        <select id="demoSessionSelect" onchange="updateDemoSession(this.value)">
+            <option value="Period 1">Period 1 (8:00–8:50 AM)</option>
+            <option value="Period 2">Period 2 (8:50–9:40 AM)</option>
+            <option value="Period 3">Period 3 (9:40–10:30 AM)</option>
+            <option value="Period 4">Period 4 (10:50–11:40 AM)</option>
+        </select>
+        <p id="demoModeStatus" class="small" role="status">Demo Mode is off.</p>
+    </div>
+</div>
+</section>
+
+<section class="card">
 <h2>📋 Attendance Records</h2>
 <label for="attendanceDate">Filter by date</label>
 <input type="date" id="attendanceDate" onchange="renderAttendance()">
@@ -131,7 +182,7 @@ th{background:#eff6ff}
 <button class="red" onclick="resetAttendance()">🔴 Reset Attendance</button>
 <div class="table-wrap">
 <table>
-<thead><tr><th>Date</th><th>Time</th><th>Register Number</th><th>Name</th><th>Status</th></tr></thead>
+<thead><tr><th>Date</th><th>Time</th><th>Session</th><th>Mode</th><th>Register Number</th><th>Name</th><th>Status</th></tr></thead>
 <tbody id="attendanceTable"></tbody>
 </table>
 </div>
@@ -154,6 +205,10 @@ const QR_TO_REG_OFFSET = 2117260029871;
 
 const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
 const FACE_THRESHOLD = 0.50;
+/* MiniFASNet V2: passive print/replay anti-spoof model (Apache-2.0 model card). */
+const ANTISPOOF_MODEL_URL = "https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx";
+const LIVENESS_THRESHOLD = 0.90; // real face scored 99.7%, phone screen 63% in testing
+const LIVENESS_FRAMES_REQUIRED = 5;
 
 let students = readJSON(STUDENTS_KEY, []);
 let attendance = readJSON(ATTENDANCE_KEY, []);
@@ -161,6 +216,8 @@ let qrMappings = readJSON(MAPPINGS_KEY, {});
 let faceDescriptors = readJSON(FACES_KEY, {});
 
 let modelsLoaded = false;
+let antiSpoofSession = null;
+let livenessSamples = [];
 let qrScanner = null;
 let qrRunning = false;
 let qrBusy = false;
@@ -171,6 +228,9 @@ let faceBusy = false;
 let pendingFaceStudent = null;
 let facePurpose = "attendance";
 let consecutiveMatches = 0;
+let attendanceFailureMessage = "";
+let demoModeEnabled = false;
+let selectedDemoSession = "Period 1";
 
 function readJSON(key, fallback) {
     try {
@@ -205,6 +265,50 @@ function esc(value) {
 function today() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+/* Determine the active class period using the device's local clock.
+   End times are exclusive, so boundary times belong to the next period. */
+function getCurrentSession(date = new Date()) {
+    const minutes = date.getHours() * 60 + date.getMinutes();
+    const sessions = [
+        { id:"Period 1", start:8 * 60, end:8 * 60 + 50 },
+        { id:"Period 2", start:8 * 60 + 50, end:9 * 60 + 40 },
+        { id:"Period 3", start:9 * 60 + 40, end:10 * 60 + 30 },
+        { id:"Period 4", start:10 * 60 + 50, end:11 * 60 + 40 }
+    ];
+    return sessions.find(session => minutes >= session.start && minutes < session.end) || null;
+}
+
+function toggleDemoMode(enabled) {
+    demoModeEnabled = Boolean(enabled);
+    const controls = document.getElementById("demoSessionControls");
+    const status = document.getElementById("demoModeStatus");
+
+    controls.hidden = !demoModeEnabled;
+    if (demoModeEnabled) {
+        selectedDemoSession = document.getElementById("demoSessionSelect").value || "Period 1";
+        status.textContent = `Demo Mode ON — attendance will be recorded for ${selectedDemoSession}.`;
+        status.className = "small status success";
+    } else {
+        status.textContent = "Demo Mode OFF — attendance follows the actual college timetable.";
+        status.className = "small status";
+    }
+}
+
+function updateDemoSession(sessionId) {
+    selectedDemoSession = sessionId;
+    const status = document.getElementById("demoModeStatus");
+    status.textContent = `Demo Mode ON — attendance will be recorded for ${selectedDemoSession}.`;
+}
+
+function getAttendanceSession(date = new Date()) {
+    if (demoModeEnabled) {
+        return { id: selectedDemoSession, mode: "Demo" };
+    }
+
+    const session = getCurrentSession(date);
+    return session ? { id: session.id, mode: "Normal" } : null;
 }
 
 function setStatus(id, message, type="") {
@@ -566,11 +670,9 @@ function canonicalHeader(value) {
 }
 
 function importCSV() {
-    const fileInput = document.getElementById("csvFile");
-    const file = fileInput.files && fileInput.files[0];
+    const file = document.getElementById("csvFile").files[0];
     if (!file) {
-        // If the user clicks Import before choosing a file, open the picker.
-        fileInput.click();
+        alert("Choose your CSV file first.");
         return;
     }
 
@@ -674,10 +776,19 @@ async function loadModels() {
         document.getElementById("modelProgress").style.width = "70%";
 
         await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        document.getElementById("modelProgress").style.width = "82%";
+
+        if (typeof ort === "undefined") {
+            throw new Error("ONNX Runtime did not load.");
+        }
+        ort.env.wasm.numThreads = 1;
+        antiSpoofSession = await ort.InferenceSession.create(ANTISPOOF_MODEL_URL, {
+            executionProviders: ["wasm"]
+        });
         document.getElementById("modelProgress").style.width = "100%";
 
         modelsLoaded = true;
-        setStatus("modelStatus","Fast Face AI loaded successfully. Models are ready.","success");
+        setStatus("modelStatus","Face recognition and passive anti-spoof AI loaded. Liveness checks are enabled.","success");
     } catch (error) {
         console.error(error);
         setStatus("modelStatus","Model loading failed. Check your internet connection and reload.","error");
@@ -831,6 +942,7 @@ async function startFaceCamera() {
         faceLoopRunning = true;
         faceBusy = false;
         consecutiveMatches = 0;
+        livenessSamples = [];
 
         document.getElementById("startFaceBtn").disabled = true;
         document.getElementById("verifyBtn").disabled = false;
@@ -852,6 +964,8 @@ async function startFaceCamera() {
 async function stopFaceCamera() {
     faceLoopRunning = false;
     faceCameraRunning = false;
+    livenessSamples = [];
+    consecutiveMatches = 0;
 
     if (faceStream) {
         faceStream.getTracks().forEach(track => track.stop());
@@ -888,6 +1002,169 @@ async function detectDescriptor() {
         .withFaceDescriptor();
 }
 
+/*
+ * MiniFASNet expects an 80x80 BGR face crop, scaled by 2.7 around the
+ * detected face, with pixel values in [0,1]. It predicts live / print / replay.
+ * This is a passive classifier, not a guarantee against every spoof attack.
+ */
+async function classifyFaceLiveness(detectionResult) {
+    if (!antiSpoofSession || !detectionResult || !detectionResult.detection) {
+        throw new Error("Anti-spoof model or face detection is unavailable.");
+    }
+
+    const video = document.getElementById("faceVideo");
+    const box = detectionResult.detection.box;
+    const frameWidth = video.videoWidth;
+    const frameHeight = video.videoHeight;
+    if (!frameWidth || !frameHeight) {
+        throw new Error("Camera frame is not ready for liveness analysis.");
+    }
+
+    /*
+     * Build the full 2.7x crop around the detected face centre.
+     * Do not shrink the crop merely because it crosses a camera-frame edge:
+     * instead, keep the requested crop size and pad out-of-frame areas with
+     * black pixels. This preserves the model's intended crop scale.
+     */
+    const cropModeEl = document.getElementById("asCrop");
+    const clampMode = !cropModeEl || cropModeEl.value === "clamp";
+    let scale = 2.7;
+    if (clampMode) {
+        // Same as the original Silent-Face code: shrink the scale so the crop fits the frame.
+        scale = Math.min((frameHeight - 1) / box.height, (frameWidth - 1) / box.width, 2.7);
+    }
+    const cropWidth = Math.max(1, box.width * scale);
+    const cropHeight = Math.max(1, box.height * scale);
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+    let cropX = centerX - cropWidth / 2;
+    let cropY = centerY - cropHeight / 2;
+    if (clampMode) {
+        // Shift (do not pad) the crop back inside the frame, like the original code.
+        cropX = Math.min(Math.max(0, cropX), frameWidth - 1 - cropWidth);
+        cropY = Math.min(Math.max(0, cropY), frameHeight - 1 - cropHeight);
+        cropX = Math.max(0, cropX);
+        cropY = Math.max(0, cropY);
+    }
+
+    // Intersection of the requested crop with the real camera frame.
+    const sourceX1 = Math.max(0, cropX);
+    const sourceY1 = Math.max(0, cropY);
+    const sourceX2 = Math.min(frameWidth, cropX + cropWidth);
+    const sourceY2 = Math.min(frameHeight, cropY + cropHeight);
+    const sourceWidth = Math.max(0, sourceX2 - sourceX1);
+    const sourceHeight = Math.max(0, sourceY2 - sourceY1);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 80;
+    canvas.height = 80;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    // Explicitly initialise the padded area; off-frame regions stay black.
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, 80, 80);
+    if (sourceWidth > 0 && sourceHeight > 0) {
+        const destX = ((sourceX1 - cropX) / cropWidth) * 80;
+        const destY = ((sourceY1 - cropY) / cropHeight) * 80;
+        const destWidth = (sourceWidth / cropWidth) * 80;
+        const destHeight = (sourceHeight / cropHeight) * 80;
+        ctx.drawImage(
+            video,
+            sourceX1, sourceY1, sourceWidth, sourceHeight,
+            destX, destY, destWidth, destHeight
+        );
+    }
+
+    // Show the exact padded 80x80 tensor image used for inference.
+    const preview = document.getElementById("livenessCropPreview");
+    if (preview) {
+        const previewCtx = preview.getContext("2d");
+        previewCtx.clearRect(0, 0, 80, 80);
+        previewCtx.drawImage(canvas, 0, 0);
+    }
+    const cropMeta = document.getElementById("livenessCropMeta");
+    if (cropMeta) {
+        cropMeta.textContent = `Requested crop: ${cropWidth.toFixed(0)} × ${cropHeight.toFixed(0)} px at ${scale.toFixed(2)}× from ${frameWidth} × ${frameHeight}; visible source: ${sourceWidth.toFixed(0)} × ${sourceHeight.toFixed(0)} px; out-of-frame area padded; resized to 80 × 80.`;
+    }
+
+    const orderSel = document.getElementById("asOrder");
+    const rgbOrder = !!orderSel && orderSel.value === "rgb";
+    const scaleSel = document.getElementById("asScale");
+    const inScale = scaleSel && scaleSel.value === "1" ? 1 / 255 : 1;
+    const pixels = ctx.getImageData(0, 0, 80, 80).data;
+    const input = new Float32Array(3 * 80 * 80);
+    for (let i = 0; i < 80 * 80; i++) {
+        const r = pixels[i * 4], g = pixels[i * 4 + 1], b = pixels[i * 4 + 2];
+        input[i] = (rgbOrder ? r : b) * inScale;
+        input[80 * 80 + i] = g * inScale;
+        input[2 * 80 * 80 + i] = (rgbOrder ? b : r) * inScale;
+    }
+
+    const inputName = antiSpoofSession.inputNames[0];
+    const tensor = new ort.Tensor("float32", input, [1, 3, 80, 80]);
+    const outputMap = await antiSpoofSession.run({ [inputName]: tensor });
+    const output = outputMap[antiSpoofSession.outputNames[0]].data;
+    if (!output || output.length < 3) throw new Error("Unexpected anti-spoof model output.");
+
+    // The model card for this exact ONNX file documents [live, print, replay].
+    // ONNX output is converted to probabilities with softmax when it is logits.
+    const raw = [Number(output[0]), Number(output[1]), Number(output[2])];
+    const rawTotal = raw.reduce((a, b) => a + b, 0);
+    let probabilities;
+    if (raw.every(v => v >= 0 && v <= 1) && Math.abs(rawTotal - 1) < 0.02) {
+        probabilities = raw;
+    } else {
+        const maxValue = Math.max(...raw);
+        const exps = raw.map(v => Math.exp(v - maxValue));
+        const total = exps.reduce((a, b) => a + b, 0);
+        probabilities = exps.map(v => v / total);
+    }
+
+    const idxSel = document.getElementById("asLiveIdx");
+    const liveIdx = idxSel ? Number(idxSel.value) : 1;
+    const spoofIdx = [0, 1, 2].filter(i => i !== liveIdx);
+    const live = probabilities[liveIdx];
+    const print = probabilities[spoofIdx[0]];
+    const replay = probabilities[spoofIdx[1]];
+    const pct = value => `${(value * 100).toFixed(1)}%`;
+    const liveEl = document.getElementById("liveScore");
+    const printEl = document.getElementById("printScore");
+    const replayEl = document.getElementById("replayScore");
+    const extraEl = document.getElementById("livenessExtra");
+    if (liveEl) liveEl.textContent = pct(probabilities[0]);
+    if (printEl) printEl.textContent = pct(probabilities[1]);
+    if (replayEl) replayEl.textContent = pct(probabilities[2]);
+    if (extraEl) {
+        extraEl.textContent =
+            `Raw model output: [${raw.map(v => Number(v).toFixed(4)).join(", ")}] | ` +
+            `Threshold: ${(LIVENESS_THRESHOLD * 100).toFixed(0)}% | ` +
+            `Input: ${rgbOrder ? 'RGB' : 'BGR'}, scale x${inScale}, NCHW [1,3,80,80] | Live = class ${liveIdx}`;
+    }
+
+    return { live, print, replay };
+}
+
+async function checkLiveSequence() {
+    const scores = [];
+    for (let i = 0; i < LIVENESS_FRAMES_REQUIRED; i++) {
+        const result = await detectDescriptor();
+        if (!result) return { passed: false, reason: "Face not clear across the liveness check." };
+        const score = await classifyFaceLiveness(result);
+        scores.push(score);
+        if (i < LIVENESS_FRAMES_REQUIRED - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+
+    const averageLive = scores.reduce((sum, item) => sum + item.live, 0) / scores.length;
+    const averageSpoof = scores.reduce((sum, item) => sum + item.print + item.replay, 0) / scores.length;
+    const minLive = Math.min(...scores.map(item => item.live));
+    return {
+        passed: minLive >= LIVENESS_THRESHOLD,
+        live: averageLive,
+        spoof: averageSpoof
+    };
+}
+
 async function faceDetectionLoop() {
     while (faceLoopRunning && faceCameraRunning) {
         if (!faceBusy) {
@@ -897,9 +1174,33 @@ async function faceDetectionLoop() {
                 const result = await detectDescriptor();
 
                 if (result && facePurpose === "attendance") {
-                    await processFaceMatch(Array.from(result.descriptor));
+                    const liveness = await classifyFaceLiveness(result);
+                    livenessSamples.push({
+                        live: liveness.live,
+                        spoof: liveness.print + liveness.replay,
+                        descriptor: Array.from(result.descriptor)
+                    });
+                    if (livenessSamples.length > LIVENESS_FRAMES_REQUIRED) livenessSamples.shift();
+
+                    if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
+                        const avgLive = livenessSamples.reduce((sum, item) => sum + item.live, 0) / LIVENESS_FRAMES_REQUIRED;
+                        const avgSpoof = livenessSamples.reduce((sum, item) => sum + item.spoof, 0) / LIVENESS_FRAMES_REQUIRED;
+                        const minLive = Math.min(...livenessSamples.map(item => item.live));
+                        if (minLive >= LIVENESS_THRESHOLD) {
+                            const latestDescriptor = livenessSamples[livenessSamples.length - 1].descriptor;
+                            livenessSamples = [];
+                            await processFaceMatch(latestDescriptor);
+                        } else {
+                            consecutiveMatches = 0;
+                            // Rolling window: keep the frames, the oldest drops out on the next one.
+                            setStatus("faceStatus","Live-face confidence was too low. Face the camera in even lighting and try again.","warning");
+                        }
+                    } else {
+                        setStatus("faceStatus",`Checking passive liveness... ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames`,"warning");
+                    }
                 } else if (!result && facePurpose === "attendance") {
                     consecutiveMatches = 0;
+                    livenessSamples = [];
                     setStatus("faceStatus","No clear face detected. Look at the camera.","warning");
                 }
             } catch (error) {
@@ -909,7 +1210,7 @@ async function faceDetectionLoop() {
             }
         }
 
-        await new Promise(resolve => setTimeout(resolve,180));
+        await new Promise(resolve => setTimeout(resolve,100));
     }
 }
 
@@ -955,7 +1256,7 @@ async function processFaceMatch(descriptor) {
                 "faceStatus",
                 recorded
                     ? `✅ Verified. Attendance marked for ${student.name}.`
-                    : `Attendance already marked today for ${student.name}.`,
+                    : (attendanceFailureMessage || `Attendance could not be marked for ${student.name}.`),
                 recorded ? "success" : "warning"
             );
 
@@ -1032,6 +1333,17 @@ async function manualFaceAction() {
         }
 
         const descriptor = Array.from(result.descriptor);
+        const liveness = await checkLiveSequence();
+        if (!liveness.passed) {
+            setStatus(
+                "faceStatus",
+                liveness.live === undefined
+                    ? (liveness.reason || "Could not confirm a live face. Try again.")
+                    : `Liveness not confirmed (live score ${(liveness.live * 100).toFixed(0)}%). Please try again.`,
+                "warning"
+            );
+            return;
+        }
 
         if (facePurpose === "registration") {
             if (!pendingFaceStudent) {
@@ -1074,7 +1386,7 @@ async function manualFaceAction() {
 
             setStatus(
                 "faceStatus",
-                recorded ? "Face verified and attendance marked." : "Attendance already marked today.",
+                recorded ? "Face verified and attendance marked." : (attendanceFailureMessage || "Attendance could not be marked."),
                 recorded ? "success" : "warning"
             );
 
@@ -1097,14 +1409,28 @@ async function manualFaceAction() {
    ====================================================== */
 
 function recordAttendance(student) {
-    if (!student) return false;
+    attendanceFailureMessage = "";
+    if (!student) {
+        attendanceFailureMessage = "No student was selected.";
+        return false;
+    }
+
+    const session = getAttendanceSession();
+    if (!session) {
+        attendanceFailureMessage = "Outside class periods. Attendance can only be marked during Period 1 (8:00–8:50 AM), Period 2 (8:50–9:40 AM), Period 3 (9:40–10:30 AM), or Period 4 (10:50–11:40 AM). The 10:30–10:50 AM break is excluded.";
+        renderAttendance();
+        updateStats();
+        return false;
+    }
 
     const exists = attendance.some(a =>
         norm(a.registerNumber) === norm(student.registerNumber) &&
-        a.date === today()
+        a.date === today() &&
+        a.session === session.id
     );
 
     if (exists) {
+        attendanceFailureMessage = `Attendance already marked for ${session.id} today for ${student.name}.`;
         renderAttendance();
         updateStats();
         return false;
@@ -1113,6 +1439,8 @@ function recordAttendance(student) {
     attendance.push({
         date:today(),
         time:new Date().toLocaleTimeString(),
+        session:session.id,
+        mode:session.mode,
         registerNumber:student.registerNumber,
         name:student.name,
         status:"Present"
@@ -1136,10 +1464,12 @@ function renderAttendance() {
     body.innerHTML = list.length ? list.map(a => `<tr>
         <td>${esc(a.date)}</td>
         <td>${esc(a.time)}</td>
+        <td>${esc(a.session || "—")}</td>
+        <td>${esc(a.mode || "Normal")}</td>
         <td>${esc(a.registerNumber)}</td>
         <td>${esc(a.name)}</td>
         <td>${esc(a.status)}</td>
-    </tr>`).join("") : '<tr><td colspan="5">No attendance records found.</td></tr>';
+    </tr>`).join("") : '<tr><td colspan="7">No attendance records found.</td></tr>';
 }
 
 function clearDateFilter() {
@@ -1166,10 +1496,10 @@ function downloadCSV(filename,rows) {
 }
 
 function exportAttendance() {
-    const rows = [["Date","Time","RegisterNumber","Name","Status"]];
+    const rows = [["Date","Time","Session","Mode","RegisterNumber","Name","Status"]];
 
     attendance.forEach(a => rows.push([
-        a.date,a.time,a.registerNumber,a.name,a.status
+        a.date,a.time,a.session || "",a.mode || "Normal",a.registerNumber,a.name,a.status
     ]));
 
     downloadCSV("smart_qr_attendance.csv",rows);
@@ -1209,6 +1539,7 @@ function resetAttendance() {
         setStatus("qrStatus", "Attendance records reset. Your students and faces are safe.", "success");
     }
 }
+
 /* ======================================================
    STARTUP
    ====================================================== */
