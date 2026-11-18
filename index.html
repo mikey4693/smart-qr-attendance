@@ -107,9 +107,9 @@ th{background:#eff6ff}
 
 <section class="card">
 <h2>🎓 Student Database</h2>
-<label for="csvFile">Import student CSV</label>
-<input type="file" id="csvFile" accept=".csv,text/csv">
-<button onclick="importCSV()">Import CSV</button>
+<label for="csvFile">Import student CSV or TSV</label>
+<input type="file" id="csvFile" accept=".csv,.tsv,text/csv,text/tab-separated-values">
+<button onclick="importCSV()">Import CSV / TSV</button>
 <p class="small">Recommended headers: RegisterNumber, Name, Department, Badge, QRID. Register number and name are required.</p>
 
 <hr>
@@ -630,7 +630,7 @@ function updateStats() {
    CSV IMPORT
    ====================================================== */
 
-function parseCSV(text) {
+function parseCSV(text, delimiter = ",") {
     const rows = [];
     let row = [], field = "", quoted = false;
 
@@ -646,7 +646,7 @@ function parseCSV(text) {
             } else {
                 quoted = !quoted;
             }
-        } else if (c === "," && !quoted) {
+        } else if (c === delimiter && !quoted) {
             row.push(field.trim());
             field = "";
         } else if ((c === "\n" || c === "\r") && !quoted) {
@@ -680,7 +680,10 @@ function importCSV() {
 
     reader.onload = event => {
         try {
-            const rows = parseCSV(event.target.result);
+            // Keep CSV comma-delimited and read Google Sheets TSV as tab-delimited.
+            const isTSV = /\.tsv$/i.test(file.name) ||
+                (!/\.csv$/i.test(file.name) && String(event.target.result).split(/\r?\n/, 1)[0].includes("\t"));
+            const rows = parseCSV(event.target.result, isTSV ? "\t" : ",");
 
             if (rows.length < 2) {
                 alert("No student records found in this CSV.");
@@ -700,7 +703,7 @@ function importCSV() {
             const qr = col(["qrid","qr","qrvalue","qrnumber","qrcode","qrdata"]);
 
             if (reg < 0 || name < 0) {
-                alert("CSV needs register number and name columns.");
+                alert("File needs register number and name columns.");
                 return;
             }
 
@@ -742,10 +745,10 @@ function importCSV() {
             store(STUDENTS_KEY, students);
             refreshUI();
 
-            alert(`CSV import complete!\nAdded: ${added}\nUpdated: ${updated}\nSkipped: ${skipped}`);
+            alert(`${isTSV ? "TSV" : "CSV"} import complete!\nAdded: ${added}\nUpdated: ${updated}\nSkipped: ${skipped}`);
         } catch (error) {
             console.error(error);
-            alert("Could not read this CSV.");
+            alert("Could not read this CSV/TSV file.");
         }
     };
 
