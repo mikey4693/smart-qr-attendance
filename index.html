@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Smart QR Attendance - Liveness Diagnostics</title>
+<title>Smart QR Attendance - Optimized Liveness</title>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
@@ -107,9 +107,9 @@ th{background:#eff6ff}
 
 <section class="card">
 <h2>🎓 Student Database</h2>
-<label for="csvFile">Import student CSV or TSV</label>
-<input type="file" id="csvFile" accept=".csv,.tsv,text/csv,text/tab-separated-values">
-<button onclick="importCSV()">Import CSV / TSV</button>
+<label for="csvFile">Import student CSV</label>
+<input type="file" id="csvFile" accept=".csv,text/csv">
+<button onclick="importCSV()">Import CSV</button>
 <p class="small">Recommended headers: RegisterNumber, Name, Department, Badge, QRID. Register number and name are required.</p>
 
 <hr>
@@ -630,7 +630,7 @@ function updateStats() {
    CSV IMPORT
    ====================================================== */
 
-function parseCSV(text, delimiter = ",") {
+function parseCSV(text) {
     const rows = [];
     let row = [], field = "", quoted = false;
 
@@ -646,7 +646,7 @@ function parseCSV(text, delimiter = ",") {
             } else {
                 quoted = !quoted;
             }
-        } else if (c === delimiter && !quoted) {
+        } else if (c === "," && !quoted) {
             row.push(field.trim());
             field = "";
         } else if ((c === "\n" || c === "\r") && !quoted) {
@@ -680,10 +680,7 @@ function importCSV() {
 
     reader.onload = event => {
         try {
-            // Keep CSV comma-delimited and read Google Sheets TSV as tab-delimited.
-            const isTSV = /\.tsv$/i.test(file.name) ||
-                (!/\.csv$/i.test(file.name) && String(event.target.result).split(/\r?\n/, 1)[0].includes("\t"));
-            const rows = parseCSV(event.target.result, isTSV ? "\t" : ",");
+            const rows = parseCSV(event.target.result);
 
             if (rows.length < 2) {
                 alert("No student records found in this CSV.");
@@ -703,7 +700,7 @@ function importCSV() {
             const qr = col(["qrid","qr","qrvalue","qrnumber","qrcode","qrdata"]);
 
             if (reg < 0 || name < 0) {
-                alert("File needs register number and name columns.");
+                alert("CSV needs register number and name columns.");
                 return;
             }
 
@@ -745,10 +742,10 @@ function importCSV() {
             store(STUDENTS_KEY, students);
             refreshUI();
 
-            alert(`${isTSV ? "TSV" : "CSV"} import complete!\nAdded: ${added}\nUpdated: ${updated}\nSkipped: ${skipped}`);
+            alert(`CSV import complete!\nAdded: ${added}\nUpdated: ${updated}\nSkipped: ${skipped}`);
         } catch (error) {
             console.error(error);
-            alert("Could not read this CSV/TSV file.");
+            alert("Could not read this CSV.");
         }
     };
 
@@ -784,7 +781,14 @@ async function loadModels() {
         if (typeof ort === "undefined") {
             throw new Error("ONNX Runtime did not load.");
         }
-        ort.env.wasm.numThreads = 1;
+        // Use WASM workers only when the browser explicitly supports the
+        // cross-origin isolation required by SharedArrayBuffer. Otherwise keep
+        // the original single-threaded path for compatibility.
+        const canUseWasmThreads = window.crossOriginIsolated === true &&
+            typeof SharedArrayBuffer !== "undefined";
+        ort.env.wasm.numThreads = canUseWasmThreads
+            ? Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2))
+            : 1;
         antiSpoofSession = await ort.InferenceSession.create(ANTISPOOF_MODEL_URL, {
             executionProviders: ["wasm"]
         });
@@ -1168,7 +1172,18 @@ async function checkLiveSequence() {
     };
 }
 
+// Wait for the next actual camera frame instead of sleeping for a fixed
+// 100 ms. This avoids wasting time on slow devices while ensuring that the
+// five liveness samples are taken from distinct video frames.
+function waitForNextFaceVideoFrame(video) {
+    if (video && typeof video.requestVideoFrameCallback === "function") {
+        return new Promise(resolve => video.requestVideoFrameCallback(() => resolve()));
+    }
+    return new Promise(resolve => setTimeout(resolve, 50));
+}
+
 async function faceDetectionLoop() {
+    const video = document.getElementById("faceVideo");
     while (faceLoopRunning && faceCameraRunning) {
         if (!faceBusy) {
             faceBusy = true;
@@ -1213,7 +1228,9 @@ async function faceDetectionLoop() {
             }
         }
 
-        await new Promise(resolve => setTimeout(resolve,100));
+        if (faceLoopRunning && faceCameraRunning) {
+            await waitForNextFaceVideoFrame(video);
+        }
     }
 }
 
