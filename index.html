@@ -44,6 +44,156 @@ th{background:#eff6ff}
 .progress{height:6px;background:#e2e8f0;margin-top:10px;border-radius:5px}
 #modelProgress{height:100%;width:0;background:#16a34a}
 @media(max-width:480px){.container{padding:10px}.card{padding:14px}.stats strong{font-size:20px}}
+
+
+/* ======================================================
+   PROFESSIONAL VISUAL REFRESH — PRESENTATION ONLY
+   No HTML controls, IDs, storage, or JavaScript behavior changed.
+   ====================================================== */
+:root{
+  color-scheme:light;
+  --brand-950:#10243a;
+  --brand-800:#173b5e;
+  --brand-600:#2563a6;
+  --accent:#0f9b8e;
+  --page:#f3f6fa;
+  --surface:#ffffff;
+  --ink:#172536;
+  --muted:#64748b;
+  --line:#e2e8f0;
+  --shadow:0 8px 26px rgba(15,35,60,.07);
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--page);
+  color:var(--ink);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+header{
+  position:relative;
+  overflow:hidden;
+  padding:34px 18px 38px;
+  text-align:left;
+  background:linear-gradient(120deg,var(--brand-950),var(--brand-800) 62%,#176b78);
+}
+header:after{
+  content:"";position:absolute;width:280px;height:280px;border:1px solid rgba(255,255,255,.12);
+  border-radius:50%;right:-65px;top:-150px;box-shadow:0 0 0 34px rgba(255,255,255,.035),0 0 0 70px rgba(255,255,255,.025);
+  pointer-events:none;
+}
+header h1,header p{position:relative;z-index:1;max-width:1080px;margin-left:auto;margin-right:auto}
+header h1{font-size:clamp(25px,4vw,34px);font-weight:750;letter-spacing:-.7px;margin-top:0;margin-bottom:5px}
+header p{font-size:14px;color:rgba(255,255,255,.78);margin-top:0;margin-bottom:0;letter-spacing:.2px}
+.container{max-width:1160px;padding:25px 20px 48px}
+.stats{gap:14px;margin:0 0 18px}
+.stat{
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 14px;
+  box-shadow:var(--shadow);text-align:left;min-height:88px;
+}
+.stat strong{font-size:27px;line-height:1.2;color:var(--brand-600);margin-bottom:5px}
+.stat span{font-size:12px;font-weight:650;letter-spacing:.45px;text-transform:uppercase;color:var(--muted)}
+.card{
+  background:var(--surface);padding:24px;border:1px solid var(--line);border-radius:16px;
+  margin-bottom:18px;box-shadow:var(--shadow);
+}
+.card h2{font-size:19px;line-height:1.35;letter-spacing:-.25px;color:var(--brand-950);margin:0 0 8px}
+.card h3{font-size:15px;color:var(--brand-800);margin:18px 0 10px}
+.card hr{border:0;border-top:1px solid var(--line);margin:21px 0}
+.small{font-size:13px;color:var(--muted);line-height:1.65}
+label{display:block;color:#334155;font-size:13px;font-weight:650;margin-top:10px}
+input,select{
+  background:#fff;color:var(--ink);padding:11px 13px;margin:6px 0 13px;border:1px solid #cbd5e1;
+  border-radius:9px;font:inherit;font-size:14px;min-height:43px;transition:border-color .15s,box-shadow .15s;
+}
+input:focus,select:focus{outline:none;border-color:var(--brand-600);box-shadow:0 0 0 3px rgba(37,99,166,.12)}
+input[type="checkbox"]{accent-color:var(--accent)}
+button{
+  border:1px solid transparent;border-radius:9px;padding:10px 15px;margin:5px 5px 5px 0;
+  background:var(--brand-600);color:#fff;font-size:13px;font-weight:700;letter-spacing:.1px;
+  box-shadow:0 2px 5px rgba(23,59,94,.12);transition:transform .15s,filter .15s,box-shadow .15s;
+}
+button:hover:not(:disabled){filter:brightness(1.06);transform:translateY(-1px);box-shadow:0 5px 12px rgba(23,59,94,.15)}
+button:active:not(:disabled){transform:translateY(0)}
+button:focus-visible{outline:3px solid rgba(15,155,142,.35);outline-offset:2px}
+button.green{background:#0f8b72}
+button.gray{background:#526477}
+button.red{background:#c2414b}
+button:disabled{cursor:not-allowed;opacity:.5;box-shadow:none}
+.status{padding:12px 14px;margin-top:12px;border:1px solid #dbeafe;border-left:4px solid var(--brand-600);background:#f3f8ff;border-radius:9px;font-size:13px;line-height:1.55}
+.success{background:#effaf5;border-color:#b7e4ce;border-left-color:#15956b}
+.error{background:#fff3f2;border-color:#fecaca;border-left-color:#dc5252}
+.warning{background:#fff9eb;border-color:#f6d78b;border-left-color:#d69a22}
+.progress{height:7px;background:#e8edf3;margin-top:13px;border-radius:20px;overflow:hidden}
+#modelProgress{background:linear-gradient(90deg,#0f9b8e,#2563a6);border-radius:20px;transition:width .25s}
+#qr-reader{max-width:520px;border-radius:12px;overflow:hidden}
+#faceVideo{max-width:520px;border:1px solid #dbe3ec;border-radius:14px;box-shadow:0 5px 16px rgba(15,35,60,.10)}
+.table-wrap{width:100%;border:1px solid var(--line);border-radius:11px;overflow:auto;margin-top:12px}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:580px;background:#fff}
+th,td{padding:12px 13px;border-bottom:1px solid #edf1f5;font-size:13px;vertical-align:middle}
+th{background:#f1f5f9;color:#334b63;font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.45px;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#f8fbfd}
+td button{font-size:12px;padding:7px 10px}
+.liveness-grid{gap:10px}
+.liveness-score{background:#f7f9fc;border:1px solid var(--line);border-radius:10px;padding:12px}
+.liveness-score strong{color:var(--brand-800);font-size:21px}
+.liveness-score span{color:var(--muted);font-weight:600}
+.liveness-crop-row canvas{border:1px solid #d6dee8;border-radius:10px}
+.demo-controls{background:#f8fafc!important;border-color:var(--line)!important;border-radius:11px!important}
+.hidden{display:none!important}
+@media(min-width:760px){
+  .container{padding-top:30px}
+  .card{padding:26px 28px}
+  .stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+}
+@media(max-width:600px){
+  header{padding:27px 17px 30px}
+  .container{padding:15px 12px 32px}
+  .card{padding:17px;border-radius:13px}
+  .stats{gap:8px}
+  .stat{padding:13px 10px;min-height:78px}
+  .stat strong{font-size:22px}
+  .stat span{font-size:10px;letter-spacing:.25px}
+  button{padding:10px 12px}
+  .liveness-crop-row{align-items:flex-start}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{transition:none!important}}
+
+
+
+/* Collapsible anti-spoof diagnostics: presentation only. */
+.advanced-diagnostics{
+  margin-top:14px;
+  border:1px solid var(--line,#e2e8f0);
+  border-radius:12px;
+  background:#f8fafc;
+  overflow:hidden;
+}
+.advanced-diagnostics summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:13px 15px;
+  color:var(--brand-800,#173b5e);
+  font-weight:700;
+  font-size:14px;
+  cursor:pointer;
+  list-style:none;
+}
+.advanced-diagnostics summary::-webkit-details-marker{display:none}
+.advanced-diagnostics summary:after{content:"";flex:0 0 9px;width:9px;height:9px;margin:0 3px 4px 8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);transition:transform .18s ease;color:var(--brand-800,#173b5e)}
+.advanced-diagnostics[open] summary:after{transform:rotate(225deg);margin-bottom:0}
+.diagnostics-hint{margin-left:auto;color:var(--muted,#64748b);font-size:12px;font-weight:500}
+.advanced-diagnostics #livenessDiagnostics{margin:0;border:0;border-top:1px solid var(--line,#e2e8f0);border-radius:0;background:#fff}
+@media(max-width:520px){.advanced-diagnostics summary{align-items:flex-start;flex-wrap:wrap}.diagnostics-hint{margin-left:0;width:100%}}
+/* Student database disclosure uses the same classic chevron as diagnostics. */
+.student-details{margin-top:0;border:0;border-radius:0;background:transparent;overflow:visible}
+.student-details summary{padding:0 0 14px;font-size:20px;line-height:1.3}
+.student-details .student-details-content{border-top:1px solid var(--line,#e2e8f0);padding-top:14px}
+
 </style>
 </head>
 
@@ -88,6 +238,8 @@ th{background:#eff6ff}
 <button class="green" id="verifyBtn" onclick="manualFaceAction()" disabled>Verify / Register Face</button>
 <button class="gray" onclick="stopFaceCamera()">Stop Face Camera</button>
 <div id="faceStatus" class="status">Waiting for a student.</div>
+<details class="advanced-diagnostics">
+<summary>Advanced Diagnostics <span class="diagnostics-hint">Model scores &amp; technical settings</span></summary>
 <div id="livenessDiagnostics" class="status" aria-live="polite">
 <strong>Anti-spoof diagnostic scores</strong>
 <p class="small">Waiting for a face frame. These scores help us diagnose the model; they are not proof that a person is live.</p>
@@ -103,10 +255,13 @@ th{background:#eff6ff}
   <div id="livenessCropMeta" class="liveness-crop-meta">The model input crop will appear here when a face is detected.</div>
 </div>
 </div>
+</details>
 </section>
 
 <section class="card">
-<h2>🎓 Student Database</h2>
+<details class="advanced-diagnostics student-details">
+<summary>🎓 Student Database</summary>
+<div class="student-details-content">
 <label for="csvFile">Import student CSV</label>
 <input type="file" id="csvFile" accept=".csv,text/csv">
 <button onclick="importCSV()">Import CSV</button>
@@ -137,6 +292,7 @@ th{background:#eff6ff}
 <tbody id="studentTable"></tbody>
 </table>
 </div>
+</details>
 </section>
 
 <section class="card">
