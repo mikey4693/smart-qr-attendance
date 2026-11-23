@@ -371,7 +371,7 @@ td button{font-size:12px;padding:7px 10px}
 <button class="red" onclick="resetAttendance()">🔴 Reset Attendance</button>
 <div class="table-wrap">
 <table>
-<thead><tr><th>Date</th><th>Time</th><th>Session</th><th>Mode</th><th>Register Number</th><th>Name</th><th>Status</th></tr></thead>
+<thead><tr><th>Date</th><th>Time</th><th>Session</th><th>Mode</th><th>Register Number</th><th>Name</th><th>Department</th><th>Status</th></tr></thead>
 <tbody id="attendanceTable"></tbody>
 </table>
 </div>
@@ -1647,6 +1647,7 @@ function recordAttendance(student) {
         mode:session.mode,
         registerNumber:student.registerNumber,
         name:student.name,
+        department:student.department || "",
         status:"Present"
     });
 
@@ -1665,15 +1666,20 @@ function renderAttendance() {
         .slice()
         .reverse();
 
-    body.innerHTML = list.length ? list.map(a => `<tr>
+    body.innerHTML = list.length ? list.map(a => {
+        const matchedStudent = findStudentByRegister(a.registerNumber);
+        const department = a.department || (matchedStudent && matchedStudent.department) || "—";
+        return `<tr>
         <td>${esc(a.date)}</td>
         <td>${esc(a.time)}</td>
         <td>${esc(a.session || "—")}</td>
         <td>${esc(a.mode || "Normal")}</td>
         <td>${esc(a.registerNumber)}</td>
         <td>${esc(a.name)}</td>
+        <td>${esc(department)}</td>
         <td>${esc(a.status)}</td>
-    </tr>`).join("") : '<tr><td colspan="7">No attendance records found.</td></tr>';
+    </tr>`;
+    }).join("") : '<tr><td colspan="8">No attendance records found.</td></tr>';
 
     renderPeriodAttendance(list);
 }
@@ -1694,11 +1700,16 @@ function renderPeriodAttendance(filteredRecords) {
             .slice()
             .reverse();
         const count = records.length;
-        const rows = records.map(a => `<tr>
+        const rows = records.map(a => {
+            const matchedStudent = findStudentByRegister(a.registerNumber);
+            const department = a.department || (matchedStudent && matchedStudent.department) || "—";
+            return `<tr>
             <td>${esc(a.registerNumber || "—")}</td>
             <td>${esc(a.name || "—")}</td>
+            <td>${esc(department)}</td>
             <td>${esc(a.time || "—")}</td>
-        </tr>`).join("");
+        </tr>`;
+        }).join("");
 
         return `<details class="period-attendance-card">
             <summary>
@@ -1709,7 +1720,7 @@ function renderPeriodAttendance(filteredRecords) {
             </summary>
             <div class="period-attendance-content">
                 ${count ? `<div class="table-wrap"><table>
-                    <thead><tr><th>Register Number</th><th>Student Name</th><th>Attendance Time</th></tr></thead>
+                    <thead><tr><th>Register Number</th><th>Student Name</th><th>Department</th><th>Attendance Time</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table></div>` : '<p class="period-attendance-empty">No students marked present for this period on the selected date.</p>'}
             </div>
