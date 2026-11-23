@@ -232,7 +232,7 @@ td button{font-size:12px;padding:7px 10px}
 
 <section class="card">
 <h2>👤 Face Verification</h2>
-<p class="small">After a valid QR match, the face camera opens automatically. Passive liveness checks a short sequence of frames for print/screen spoofing before face matching. It may still make mistakes and must be tested.</p>
+<p class="small">After a valid QR match, complete the five checks: face detection, a random head turn, two blinks, a smile, and registered-face matching. Passive anti-spoofing also checks five camera frames at a 90% live-confidence threshold. This prototype can still make mistakes and requires real-world testing.</p>
 <video id="faceVideo" autoplay muted playsinline></video>
 <button id="startFaceBtn" onclick="startFaceCamera()">Start Face Camera</button>
 <button class="green" id="verifyBtn" onclick="manualFaceAction()" disabled>Verify / Register Face</button>
@@ -376,6 +376,11 @@ let antiSpoofSession = null;
 let livenessSamples = [];
 let blinkDetected = false;
 let eyeClosedSeen = false;
+let blinkCount = 0;
+let challengeStep = "head";
+let challengeDirection = "left";
+let smileStableFrames = 0;
+let challengeComplete = false;
 let qrScanner = null;
 let qrRunning = false;
 let qrBusy = false;
@@ -1121,16 +1126,15 @@ async function startFaceCamera() {
         faceBusy = false;
         consecutiveMatches = 0;
         livenessSamples = [];
-        blinkDetected = false;
-        eyeClosedSeen = false;
+        resetSecurityChallenge();
 
         document.getElementById("startFaceBtn").disabled = true;
         document.getElementById("verifyBtn").disabled = false;
 
         setStatus("faceStatus",
             facePurpose === "registration"
-            ? "Look at the camera and hold still, then tap Verify / Register Face."
-            : "Looking for a face match...",
+            ? "Security check 1/5: Face detected. Follow the head-turn, blink and smile prompts."
+            : "Security check 1/5: Keep your face centered. Preparing a random liveness challenge...",
             "success");
 
         faceDetectionLoop();
@@ -1146,8 +1150,7 @@ async function stopFaceCamera() {
     faceCameraRunning = false;
     livenessSamples = [];
     consecutiveMatches = 0;
-    blinkDetected = false;
-    eyeClosedSeen = false;
+    resetSecurityChallenge();
 
     if (faceStream) {
         faceStream.getTracks().forEach(track => track.stop());
@@ -1197,23 +1200,102 @@ function eyeAspectRatio(points) {
         (2 * horizontal);
 }
 
-// A simple blink prompt makes a still photograph less likely to pass by itself.
-// It is an extra check, not proof of liveness; replay videos can still imitate it.
-function updateBlinkChallenge(result) {
-    if (!result || !result.landmarks) return blinkDetected;
-    const left = eyeAspectRatio(result.landmarks.getLeftEye());
-    const right = eyeAspectRatio(result.landmarks.getRightEye());
-    if (left === null || right === null) return blinkDetected;
+// Five ordered verification gates: face detection, randomized head turn,
+// two blinks, smile, then face matching. Passive anti-spoofing remains active
+// between the challenge and identity match; none of these checks is foolproof.
+function resetSecurityChallenge() {
+    blinkDetected = false;
+    eyeClosedSeen = false;
+    blinkCount = 0;
+    challengeStep = "head";
+    challengeDirection = Math.random() < 0.5 ? "left" : "right";
+    smileStableFrames = 0;
+    challengeComplete = false;
+}
 
-    const average = (left + right) / 2;
-    if (average < 0.19) {
-        eyeClosedSeen = true;
-    } else if (eyeClosedSeen && average > 0.23) {
-        blinkDetected = true;
-        eyeClosedSeen = false;
-        setStatus("faceStatus", "Blink detected. Checking passive anti-spoof and face match...", "success");
+function normalizedHeadTurn(result) {
+    const landmarks = result && result.landmarks;
+    if (!landmarks) return null;
+    const leftEye = landmarks.getLeftEye();
+    const rightEye = landmarks.getRightEye();
+    const nose = landmarks.positions && landmarks.positions[30];
+    if (!leftEye || !rightEye || !nose) return null;
+    const eyeCenterX = (leftEye.reduce((v,p)=>v+p.x,0)/leftEye.length +
+                        rightEye.reduce((v,p)=>v+p.x,0)/rightEye.length) / 2;
+    const eyeSpan = Math.abs(rightEye.reduce((v,p)=>v+p.x,0)/rightEye.length -
+                             leftEye.reduce((v,p)=>v+p.x,0)/leftEye.length);
+    if (eyeSpan < 1) return null;
+    return (nose.x - eyeCenterX) / eyeSpan;
+}
+
+function updateSecurityChallenge(result) {
+    if (!result || !result.landmarks) return challengeComplete;
+    const landmarks = result.landmarks;
+
+    if (challengeStep === "head") {
+        const yaw = normalizedHeadTurn(result);
+        // The sign is based on the mirrored selfie preview. If a device mirrors
+        // differently, the user can retry; threshold avoids tiny natural motion.
+        const turned = yaw === null ? false :
+            (challengeDirection === "left" ? yaw > 0.16 : yaw < -0.16);
+        if (turned) {
+            challengeStep = "blink";
+            eyeClosedSeen = false;
+            blinkCount = 0;
+            setStatus("faceStatus", "Gate 2/5 passed. Now blink twice while facing the camera.", "warning");
+        } else {
+            setStatus("faceStatus", `Gate 1/5 passed — turn your head slightly to your ${challengeDirection}.`, "warning");
+        }
+        return false;
     }
-    return blinkDetected;
+
+    if (challengeStep === "blink") {
+        const left = eyeAspectRatio(landmarks.getLeftEye());
+        const right = eyeAspectRatio(landmarks.getRightEye());
+        if (left !== null && right !== null) {
+            const ear = (left + right) / 2;
+            if (ear < 0.19) eyeClosedSeen = true;
+            else if (eyeClosedSeen && ear > 0.24) {
+                blinkCount++;
+                eyeClosedSeen = false;
+                if (blinkCount >= 2) {
+                    challengeStep = "smile";
+                    smileStableFrames = 0;
+                    setStatus("faceStatus", "Gate 3/5 passed. Smile naturally at the camera.", "warning");
+                } else {
+                    setStatus("faceStatus", "Gate 2/5: One blink detected. Blink once more.", "warning");
+                }
+            }
+        }
+        return false;
+    }
+
+    if (challengeStep === "smile") {
+        const mouth = landmarks.getMouth();
+        const positions = landmarks.positions || [];
+        const faceBox = result.detection && result.detection.box;
+        if (mouth && mouth.length >= 20 && faceBox && faceBox.width > 0) {
+            const cornerY = (mouth[0].y + mouth[6].y) / 2;
+            const centerY = (mouth[3].y + mouth[9].y) / 2;
+            const mouthWidth = Math.abs(mouth[6].x - mouth[0].x);
+            const smileCurve = (centerY - cornerY) / faceBox.width;
+            const wideSmile = mouthWidth / faceBox.width > 0.32;
+            if (smileCurve > 0.018 && wideSmile) smileStableFrames++;
+            else smileStableFrames = 0;
+            if (smileStableFrames >= 3) {
+                challengeStep = "passive";
+                challengeComplete = true;
+                blinkDetected = true;
+                setStatus("faceStatus", "Gates 1–4/5 passed. Checking five passive anti-spoof frames before face matching...", "success");
+            } else {
+                setStatus("faceStatus", `Gate 3/5 passed. Hold a natural smile... ${smileStableFrames}/3`, "warning");
+            }
+        } else {
+            setStatus("faceStatus", "Gate 3/5 passed. Keep your face visible and smile naturally.", "warning");
+        }
+        return challengeComplete;
+    }
+    return challengeComplete;
 }
 
 /*
@@ -1399,44 +1481,37 @@ async function faceDetectionLoop() {
                 const result = await detectFaceLandmarks();
 
                 if (result) {
-                    updateBlinkChallenge(result);
+                    if (!challengeComplete) {
+                        updateSecurityChallenge(result);
+                        livenessSamples = [];
+                    } else if (facePurpose === "attendance") {
+                        const liveness = await classifyFaceLiveness(result);
+                        livenessSamples.push({ live: liveness.live, spoof: liveness.print + liveness.replay });
+                        if (livenessSamples.length > LIVENESS_FRAMES_REQUIRED) livenessSamples.shift();
 
-                    if (facePurpose === "attendance") {
-                        if (!blinkDetected) {
-                            livenessSamples = [];
-                            setStatus("faceStatus", "Please blink once while looking at the camera.", "warning");
-                        } else {
-                            const liveness = await classifyFaceLiveness(result);
-                            livenessSamples.push({
-                                live: liveness.live,
-                                spoof: liveness.print + liveness.replay
-                            });
-                            if (livenessSamples.length > LIVENESS_FRAMES_REQUIRED) livenessSamples.shift();
-
-                            if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
-                                const minLive = Math.min(...livenessSamples.map(item => item.live));
-                                if (minLive >= LIVENESS_THRESHOLD) {
-                                    // Only run the recognition network after liveness passes.
-                                    const descriptorResult = await result.withFaceDescriptor();
-                                    livenessSamples = [];
-                                    await processFaceMatch(Array.from(descriptorResult.descriptor));
-                                } else {
-                                    consecutiveMatches = 0;
-                                    setStatus("faceStatus", "Passive anti-spoof confidence is low. Keep your face centered and try again.", "warning");
-                                }
+                        if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
+                            const minLive = Math.min(...livenessSamples.map(item => item.live));
+                            if (minLive >= LIVENESS_THRESHOLD) {
+                                const descriptorResult = await result.withFaceDescriptor();
+                                livenessSamples = [];
+                                setStatus("faceStatus", "Gate 4/5 passed. Passive liveness passed; checking identity (Gate 5/5)...", "success");
+                                await processFaceMatch(Array.from(descriptorResult.descriptor));
                             } else {
-                                setStatus("faceStatus", `Checking passive liveness... ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames`, "warning");
+                                consecutiveMatches = 0;
+                                livenessSamples = [];
+                                setStatus("faceStatus", "Passive anti-spoof confidence is below 90%. Re-centre your face and hold steady for another check.", "warning");
                             }
+                        } else {
+                            setStatus("faceStatus", `Gates 1–4/5 passed. Passive anti-spoof: ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames (90% each).`, "warning");
                         }
-                    } else if (facePurpose === "registration" && blinkDetected) {
-                        setStatus("faceStatus", "Blink detected. Tap Verify / Register Face to continue.", "success");
                     } else if (facePurpose === "registration") {
-                        setStatus("faceStatus", "Look at the camera and blink once, then tap Verify / Register Face.", "warning");
+                        setStatus("faceStatus", "Gates 1–4/5 passed. Passive anti-spoof is ready; tap Verify / Register Face.", "success");
                     }
-                } else if (facePurpose === "attendance") {
+                } else {
                     consecutiveMatches = 0;
                     livenessSamples = [];
-                    setStatus("faceStatus", "No clear face detected. Look at the camera.", "warning");
+                    if (facePurpose === "attendance") setStatus("faceStatus", "Gate 1/5: No clear face detected. Look at the camera.", "warning");
+                    else setStatus("faceStatus", "No clear face detected. Look at the camera.", "warning");
                 }
             } catch (error) {
                 console.error(error);
@@ -1557,6 +1632,11 @@ async function manualFaceAction() {
 
     if (faceBusy) {
         setStatus("faceStatus","Wait for the current face detection to finish.");
+        return;
+    }
+
+    if (!challengeComplete) {
+        setStatus("faceStatus", "Complete the head-turn, two-blink and smile challenges before continuing.", "warning");
         return;
     }
 
