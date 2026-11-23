@@ -212,7 +212,7 @@ td button{font-size:12px;padding:7px 10px}
 <body>
 <header>
 <h1>📷 Smart QR Attendance</h1>
-<p>QR Scanning + Fast Face Verification</p>
+<p>QR Scanning + Face Verification + Randomised Liveness Challenge</p>
 </header>
 
 <main class="container">
@@ -244,7 +244,7 @@ td button{font-size:12px;padding:7px 10px}
 
 <section class="card">
 <h2>👤 Face Verification</h2>
-<p class="small">After a valid QR match, the face camera opens automatically. Passive liveness checks a short sequence of frames for print/screen spoofing before face matching. It may still make mistakes and must be tested.</p>
+<p class="small">After a valid QR match, the face camera opens automatically. Passive liveness checks five consecutive frames, followed by a random LEFT/RIGHT head-turn challenge and face matching. These checks can still make mistakes and must be tested.</p>
 <video id="faceVideo" autoplay muted playsinline></video>
 <button id="startFaceBtn" onclick="startFaceCamera()">Start Face Camera</button>
 <button class="green" id="verifyBtn" onclick="manualFaceAction()" disabled>Verify / Register Face</button>
@@ -281,7 +281,7 @@ td button{font-size:12px;padding:7px 10px}
   <label for="csvFile">Choose a CSV or TSV file</label>
   <input type="file" id="csvFile" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values">
   <button onclick="importCSV()">Import Student File</button>
-  <p class="small">Supported formats: .csv and .tsv. Required columns: RegisterNumber and Name. Optional columns: Department, Badge, QRID.</p>
+  <p class="small">Supported formats: .csv and .tsv. Required columns: RegisterNumber and Name. Optional columns: Course, Department, Badge, QRID. Course and Department are kept separately. Course (e.g. B.E. ECE) and Department/Section (e.g. G) are stored separately.</p>
   <hr>
   <h3>Download student data</h3>
   <button class="green" onclick="exportStudents('csv')">⬇ Download Students CSV</button>
@@ -295,7 +295,7 @@ td button{font-size:12px;padding:7px 10px}
 <h3>Add / Update Student</h3>
 <label for="regInput">Register Number</label><input id="regInput" placeholder="Register number">
 <label for="nameInput">Student Name</label><input id="nameInput" placeholder="Name">
-<label for="deptInput">Department / Section</label><input id="deptInput" placeholder="ECE G">
+<label for="courseInput">Course</label><input id="courseInput" placeholder="B.E. ECE"><label for="deptInput">Department / Section</label><input id="deptInput" placeholder="G">
 <label for="badgeInput">Badge</label><input id="badgeInput" placeholder="Optional">
 <label for="qrInput">QR ID</label><input id="qrInput" placeholder="Optional QR ID">
 <button class="green" onclick="saveStudent()">Save Student</button>
@@ -312,7 +312,7 @@ td button{font-size:12px;padding:7px 10px}
 <input id="searchStudent" placeholder="Search name or register number" oninput="renderStudents()">
 <div class="table-wrap">
 <table>
-<thead><tr><th>Register Number</th><th>Name</th><th>Department</th><th>Face</th><th>Actions</th></tr></thead>
+<thead><tr><th>Register Number</th><th>Name</th><th>Course</th><th>Department / Section</th><th>Face</th><th>Actions</th></tr></thead>
 <tbody id="studentTable"></tbody>
 </table>
 </div>
@@ -371,7 +371,7 @@ td button{font-size:12px;padding:7px 10px}
 <button class="red" onclick="resetAttendance()">🔴 Reset Attendance</button>
 <div class="table-wrap">
 <table>
-<thead><tr><th>Date</th><th>Time</th><th>Session</th><th>Mode</th><th>Register Number</th><th>Name</th><th>Department</th><th>Status</th></tr></thead>
+<thead><tr><th>Date</th><th>Time</th><th>Session</th><th>Mode</th><th>Register Number</th><th>Name</th><th>Course</th><th>Department / Section</th><th>Status</th></tr></thead>
 <tbody id="attendanceTable"></tbody>
 </table>
 </div>
@@ -400,8 +400,8 @@ const LIVENESS_THRESHOLD = 0.90; // real face scored 99.7%, phone screen 63% in 
 const LIVENESS_FRAMES_REQUIRED = 5;
 
 let students = readJSON(STUDENTS_KEY, []);
-// Default missing department values to ECE while preserving any imported department.
-students = students.map(student => ({ ...student, department: String(student.department || "").trim() || "ECE" }));
+// Keep Course and Department/Section as separate values; do not substitute one for the other.
+students = students.map(student => ({ ...student, course: String(student.course || "").trim(), department: String(student.department || "").trim() }));
 store(STUDENTS_KEY, students);
 let attendance = readJSON(ATTENDANCE_KEY, []);
 let qrMappings = readJSON(MAPPINGS_KEY, {});
@@ -420,6 +420,9 @@ let faceBusy = false;
 let pendingFaceStudent = null;
 let facePurpose = "attendance";
 let consecutiveMatches = 0;
+let headChallengePassed = false;
+let headChallengeActive = false;
+let attendanceVerificationDeadline = 0;
 let attendanceFailureMessage = "";
 let demoModeEnabled = false;
 let selectedDemoSession = "Period 1";
@@ -693,7 +696,8 @@ function identifyStudent(qrText) {
 function saveStudent() {
     const registerNumber = document.getElementById("regInput").value.trim();
     const name = document.getElementById("nameInput").value.trim();
-    const department = document.getElementById("deptInput").value.trim() || "ECE";
+    const course = document.getElementById("courseInput").value.trim();
+    const department = document.getElementById("deptInput").value.trim();
     const badge = document.getElementById("badgeInput").value.trim();
     const qrId = document.getElementById("qrInput").value.trim();
 
@@ -706,11 +710,12 @@ function saveStudent() {
 
     if (existing) {
         existing.name = name;
+        existing.course = course;
         existing.department = department;
         existing.badge = badge;
         if (qrId) existing.qrId = qrId;
     } else {
-        students.push({registerNumber,name,department,badge,qrId});
+        students.push({registerNumber,name,course,department,badge,qrId});
     }
 
     store(STUDENTS_KEY, students);
@@ -725,6 +730,7 @@ function editStudent(reg) {
 
     document.getElementById("regInput").value = s.registerNumber;
     document.getElementById("nameInput").value = s.name;
+    document.getElementById("courseInput").value = s.course || "";
     document.getElementById("deptInput").value = s.department || "";
     document.getElementById("badgeInput").value = s.badge || "";
     document.getElementById("qrInput").value = s.qrId || "";
@@ -752,7 +758,7 @@ function deleteStudent(reg) {
 }
 
 function clearStudentForm() {
-    ["regInput","nameInput","deptInput","badgeInput","qrInput"].forEach(id => {
+    ["regInput","nameInput","courseInput","deptInput","badgeInput","qrInput"].forEach(id => {
         document.getElementById(id).value = "";
     });
 }
@@ -764,7 +770,7 @@ function renderStudents() {
     const list = students.filter(s =>
         norm(s.registerNumber).includes(query) ||
         norm(s.name).includes(query) ||
-        norm(s.department).includes(query)
+        norm(s.department).includes(query) || norm(s.course).includes(query)
     );
 
     body.innerHTML = list.length ? list.map(s => {
@@ -774,6 +780,7 @@ function renderStudents() {
         return `<tr>
             <td>${r}</td>
             <td>${esc(s.name)}</td>
+            <td>${esc(s.course || "-")}</td>
             <td>${esc(s.department || "-")}</td>
             <td>${hasFace ? "✅ Registered" : "❌ Not registered"}</td>
             <td>
@@ -781,7 +788,7 @@ function renderStudents() {
                 <button class="red" onclick="deleteStudent('${r}')">Delete</button>
             </td>
         </tr>`;
-    }).join("") : '<tr><td colspan="5">No students found.</td></tr>';
+    }).join("") : '<tr><td colspan="6">No students found.</td></tr>';
 }
 
 function updateStudentSelect() {
@@ -893,7 +900,8 @@ function importCSV() {
 
             const reg = col(["registernumber","registerno","regno","register","rollnumber","rollno","roll"]);
             const name = col(["name","studentname","fullname","student"]);
-            const dept = col(["department","dept","section","class","departmentname"]);
+            const courseCol = col(["course","program","programme"]);
+            const dept = col(["department","dept","section","class","departmentname","departmentsection"]);
             const badge = col(["badge","designation","year"]);
             const qr = col(["qrid","qr","qrvalue","qrnumber","qrcode","qrdata"]);
 
@@ -912,19 +920,21 @@ function importCSV() {
                     continue;
                 }
 
-                const department = (dept >= 0 ? String(row[dept] || "").trim() : "") || "ECE";
+                const course = courseCol >= 0 ? String(row[courseCol] || "").trim() : "";
+                const department = dept >= 0 ? String(row[dept] || "").trim() : "";
                 const studentBadge = badge >= 0 ? String(row[badge] || "").trim() : "";
                 const qrId = qr >= 0 ? String(row[qr] || "").trim() : "";
                 const existing = findStudentByRegister(registerNumber);
 
                 if (existing) {
                     existing.name = studentName;
+                    if (course) existing.course = course;
                     if (department) existing.department = department;
                     if (studentBadge) existing.badge = studentBadge;
                     if (qrId) existing.qrId = qrId;
                     updated++;
                 } else {
-                    students.push({registerNumber,name:studentName,department,badge:studentBadge,qrId});
+                    students.push({registerNumber,name:studentName,course,department,badge:studentBadge,qrId});
                     added++;
                 }
             }
@@ -1136,6 +1146,9 @@ async function startFaceCamera() {
         faceLoopRunning = true;
         faceBusy = false;
         consecutiveMatches = 0;
+        headChallengePassed = false;
+        headChallengeActive = false;
+        attendanceVerificationDeadline = facePurpose === "attendance" ? Date.now() + 5000 : 0;
         livenessSamples = [];
 
         document.getElementById("startFaceBtn").disabled = true;
@@ -1160,6 +1173,9 @@ async function stopFaceCamera() {
     faceCameraRunning = false;
     livenessSamples = [];
     consecutiveMatches = 0;
+    headChallengePassed = false;
+    headChallengeActive = false;
+    attendanceVerificationDeadline = 0;
 
     if (faceStream) {
         faceStream.getTracks().forEach(track => track.stop());
@@ -1369,9 +1385,83 @@ function waitForNextFaceVideoFrame(video) {
     return new Promise(resolve => setTimeout(resolve, 50));
 }
 
+// Estimate horizontal head turn from nose position relative to the eye line.
+// This is a lightweight browser landmark heuristic, not certified liveness proof.
+function getHeadTurnMetric(result) {
+    if (!result || !result.landmarks) return null;
+    const nose = result.landmarks.getNose();
+    const leftEye = result.landmarks.getLeftEye();
+    const rightEye = result.landmarks.getRightEye();
+    if (!nose || !nose.length || !leftEye || !rightEye) return null;
+    const noseX = nose.reduce((sum, point) => sum + point.x, 0) / nose.length;
+    const eyeLeftX = leftEye.reduce((sum, point) => sum + point.x, 0) / leftEye.length;
+    const eyeRightX = rightEye.reduce((sum, point) => sum + point.x, 0) / rightEye.length;
+    const eyeCenter = (eyeLeftX + eyeRightX) / 2;
+    const eyeWidth = Math.abs(eyeRightX - eyeLeftX);
+    if (eyeWidth < 1) return null;
+    return (noseX - eyeCenter) / eyeWidth;
+}
+
+async function runRandomHeadChallenge() {
+    if (headChallengePassed) return true;
+    if (headChallengeActive) return false;
+    headChallengeActive = true;
+    const video = document.getElementById("faceVideo");
+    const direction = Math.random() < 0.5 ? "LEFT" : "RIGHT";
+    const instruction = direction === "LEFT" ? "Turn your head LEFT" : "Turn your head RIGHT";
+    setStatus("faceStatus", `${instruction}. Keep your face visible.`, "warning");
+
+    try {
+        // Establish a short neutral-position baseline after the instruction.
+        const baselineValues = [];
+        const baselineDeadline = Date.now() + 1800;
+        while (Date.now() < baselineDeadline && faceCameraRunning) {
+            await waitForNextFaceVideoFrame(video);
+            const frame = await detectDescriptor();
+            const metric = getHeadTurnMetric(frame);
+            if (metric !== null) baselineValues.push(metric);
+            if (baselineValues.length >= 3) break;
+        }
+        if (baselineValues.length < 3) {
+            setStatus("faceStatus", "Could not get a clear starting face position. Please try again or ask the teacher.", "warning");
+            return false;
+        }
+        const baseline = baselineValues.reduce((a,b) => a+b, 0) / baselineValues.length;
+        const deadline = Math.min(Date.now() + 5000, attendanceVerificationDeadline || (Date.now() + 5000));
+        let consecutive = 0;
+        // Front-camera preview is mirrored; invert raw image movement for the
+        // student's left/right perspective.
+        const expectedSign = direction === "LEFT" ? -1 : 1;
+        while (Date.now() < deadline && faceCameraRunning) {
+            await waitForNextFaceVideoFrame(video);
+            const frame = await detectDescriptor();
+            const metric = getHeadTurnMetric(frame);
+            if (metric === null) { consecutive = 0; continue; }
+            const signedChange = (metric - baseline) * expectedSign;
+            if (signedChange >= 0.16) consecutive++;
+            else consecutive = 0;
+            if (consecutive >= 3) {
+                headChallengePassed = true;
+                setStatus("faceStatus", `${instruction} detected. Completing face verification...`, "success");
+                return true;
+            }
+        }
+        setStatus("faceStatus", "Head movement was not confirmed before the 5-second verification limit. Please ask the teacher for verification.", "warning");
+        return false;
+    } finally {
+        headChallengeActive = false;
+    }
+}
+
 async function faceDetectionLoop() {
     const video = document.getElementById("faceVideo");
     while (faceLoopRunning && faceCameraRunning) {
+        if (facePurpose === "attendance" && attendanceVerificationDeadline && Date.now() >= attendanceVerificationDeadline) {
+            faceLoopRunning = false;
+            setStatus("faceStatus", "Verification exceeded 5 seconds. Attendance was not marked; please ask the teacher for verification.", "warning");
+            await stopFaceCamera();
+            return;
+        }
         if (!faceBusy) {
             faceBusy = true;
 
@@ -1394,6 +1484,14 @@ async function faceDetectionLoop() {
                         if (minLive >= LIVENESS_THRESHOLD) {
                             const latestDescriptor = livenessSamples[livenessSamples.length - 1].descriptor;
                             livenessSamples = [];
+                            if (!headChallengePassed) {
+                                const challengeOK = await runRandomHeadChallenge();
+                                if (!challengeOK) {
+                                    faceLoopRunning = false;
+                                    await stopFaceCamera();
+                                    return;
+                                }
+                            }
                             await processFaceMatch(latestDescriptor);
                         } else {
                             consecutiveMatches = 0;
@@ -1578,6 +1676,11 @@ async function manualFaceAction() {
             return;
         }
 
+        if (!headChallengePassed) {
+            const challengeOK = await runRandomHeadChallenge();
+            if (!challengeOK) return;
+        }
+
         const saved = faceDescriptors[pendingFaceStudent.registerNumber];
 
         if (!Array.isArray(saved)) {
@@ -1650,6 +1753,7 @@ function recordAttendance(student) {
         mode:session.mode,
         registerNumber:student.registerNumber,
         name:student.name,
+        course:student.course || "",
         department:student.department || "",
         status:"Present"
     });
@@ -1671,7 +1775,7 @@ function renderAttendance() {
 
     body.innerHTML = list.length ? list.map(a => {
         const matchedStudent = findStudentByRegister(a.registerNumber);
-        const department = a.department || (matchedStudent && matchedStudent.department) || "ECE";
+        const department = a.department || (matchedStudent && matchedStudent.department) || "";
         return `<tr>
         <td>${esc(a.date)}</td>
         <td>${esc(a.time)}</td>
@@ -1679,10 +1783,11 @@ function renderAttendance() {
         <td>${esc(a.mode || "Normal")}</td>
         <td>${esc(a.registerNumber)}</td>
         <td>${esc(a.name)}</td>
-        <td>${esc(department)}</td>
+        <td>${esc(a.course || (matchedStudent && matchedStudent.course) || "-")}</td>
+        <td>${esc(department || "-")}</td>
         <td>${esc(a.status)}</td>
     </tr>`;
-    }).join("") : '<tr><td colspan="8">No attendance records found.</td></tr>';
+    }).join("") : '<tr><td colspan="9">No attendance records found.</td></tr>';
 
     renderPeriodAttendance(list);
 }
@@ -1705,11 +1810,12 @@ function renderPeriodAttendance(filteredRecords) {
         const count = records.length;
         const rows = records.map(a => {
             const matchedStudent = findStudentByRegister(a.registerNumber);
-            const department = a.department || (matchedStudent && matchedStudent.department) || "ECE";
+            const department = a.department || (matchedStudent && matchedStudent.department) || "";
             return `<tr>
             <td>${esc(a.registerNumber || "—")}</td>
             <td>${esc(a.name || "—")}</td>
-            <td>${esc(department)}</td>
+            <td>${esc(a.course || (matchedStudent && matchedStudent.course) || "—")}</td>
+            <td>${esc(department || "—")}</td>
             <td>${esc(a.time || "—")}</td>
         </tr>`;
         }).join("");
@@ -1723,7 +1829,7 @@ function renderPeriodAttendance(filteredRecords) {
             </summary>
             <div class="period-attendance-content">
                 ${count ? `<div class="table-wrap"><table>
-                    <thead><tr><th>Register Number</th><th>Student Name</th><th>Department</th><th>Attendance Time</th></tr></thead>
+                    <thead><tr><th>Register Number</th><th>Student Name</th><th>Course</th><th>Department / Section</th><th>Attendance Time</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table></div>` : '<p class="period-attendance-empty">No students marked present for this period on the selected date.</p>'}
             </div>
@@ -1758,10 +1864,10 @@ function downloadDelimited(filename, rows, delimiter) {
 function exportAttendance(format = "csv") {
     const ext = format === "tsv" ? "tsv" : "csv";
     const delimiter = ext === "tsv" ? "\t" : ",";
-    const rows = [["Date","Time","Session","Mode","RegisterNumber","Name","Status"]];
+    const rows = [["Date","Time","Session","Mode","RegisterNumber","Name","Course","Department","Status"]];
 
     attendance.forEach(a => rows.push([
-        a.date,a.time,a.session || "",a.mode || "Normal",a.registerNumber,a.name,a.status
+        a.date,a.time,a.session || "",a.mode || "Normal",a.registerNumber,a.name,a.course || "",a.department || "",a.status
     ]));
     downloadDelimited(`smart_qr_attendance.${ext}`, rows, delimiter);
 }
@@ -1769,10 +1875,10 @@ function exportAttendance(format = "csv") {
 function exportStudents(format = "csv") {
     const ext = format === "tsv" ? "tsv" : "csv";
     const delimiter = ext === "tsv" ? "\t" : ",";
-    const rows = [["RegisterNumber","Name","Department","Badge","QRID"]];
+    const rows = [["RegisterNumber","Name","Course","Department","Badge","QRID"]];
 
     students.forEach(s => rows.push([
-        s.registerNumber,s.name,s.department || "",s.badge || "",s.qrId || ""
+        s.registerNumber,s.name,s.course || "",s.department || "",s.badge || "",s.qrId || ""
     ]));
     downloadDelimited(`smart_qr_students.${ext}`, rows, delimiter);
 }
@@ -1781,7 +1887,7 @@ function downloadStudentTemplate(format = "csv") {
     const ext = format === "tsv" ? "tsv" : "csv";
     const delimiter = ext === "tsv" ? "\t" : ",";
     downloadDelimited(`smart_qr_student_template.${ext}`,
-        [["RegisterNumber","Name","Department","Badge","QRID"]], delimiter);
+        [["RegisterNumber","Name","Course","Department","Badge","QRID"]], delimiter);
 }
 
 function resetAttendance() {
