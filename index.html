@@ -248,7 +248,7 @@ td button{font-size:12px;padding:7px 10px}
   <div class="liveness-score"><strong id="printScore">—</strong><span>Class 1</span></div>
   <div class="liveness-score"><strong id="replayScore">—</strong><span>Class 2</span></div>
 </div>
-<div class="small" style="margin-top:8px">Input scale: <select id="asScale"><option value="255">raw 0-255 (original repo)</option><option value="1">0-1 (divide by 255)</option></select> Channel order: <select id="asOrder"><option value="bgr">BGR (original repo)</option><option value="rgb">RGB</option></select> Crop: <select id="asCrop"><option value="clamp">fit in frame (original repo)</option><option value="pad">black padding</option></select> Live class: <select id="asLiveIdx"><option value="1">class 1 (original repo)</option><option value="0">class 0</option></select></div>
+<div class="small" style="margin-top:8px">Input scale: <select id="asScale"><option value="1" selected>0-1 (divide by 255) — model default</option><option value="255">raw 0-255 (diagnostic)</option></select> Channel order: <select id="asOrder"><option value="bgr">BGR (original repo)</option><option value="rgb">RGB</option></select> Crop: <select id="asCrop"><option value="pad" selected>2.7× crop with padding — model default</option><option value="clamp">fit in frame (diagnostic)</option></select> Live class: <select id="asLiveIdx"><option value="0" selected>class 0 (live — this ONNX model)</option><option value="1">class 1 (diagnostic)</option></select></div>
 <p id="livenessExtra" class="small">Current threshold: 90% (every frame must pass). Model output order is based on the model card.</p>
 <div class="liveness-crop-row">
   <canvas id="livenessCropPreview" width="80" height="80" aria-label="80 by 80 face crop sent to anti-spoof model"></canvas>
@@ -363,7 +363,7 @@ const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
 const FACE_THRESHOLD = 0.50;
 /* MiniFASNet V2: passive print/replay anti-spoof model (Apache-2.0 model card). */
 const ANTISPOOF_MODEL_URL = "https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx";
-const LIVENESS_THRESHOLD = 0.90; // real face scored 99.7%, phone screen 63% in testing
+const LIVENESS_THRESHOLD = 0.90; // conservative prototype threshold; validate on varied devices and lighting
 const LIVENESS_FRAMES_REQUIRED = 5;
 
 let students = readJSON(STUDENTS_KEY, []);
@@ -374,6 +374,8 @@ let faceDescriptors = readJSON(FACES_KEY, {});
 let modelsLoaded = false;
 let antiSpoofSession = null;
 let livenessSamples = [];
+let blinkDetected = false;
+let eyeClosedSeen = false;
 let qrScanner = null;
 let qrRunning = false;
 let qrBusy = false;
@@ -976,13 +978,26 @@ async function startQRScanner() {
     }
 
     try {
-        if (!qrScanner) qrScanner = new Html5Qrcode("qr-reader");
+        if (!qrScanner) {
+            const qrFormats = typeof Html5QrcodeSupportedFormats !== "undefined"
+                ? {
+                    formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+                    useBarCodeDetectorIfSupported: true
+                }
+                : undefined;
+            qrScanner = qrFormats
+                ? new Html5Qrcode("qr-reader", qrFormats)
+                : new Html5Qrcode("qr-reader");
+        }
 
         setStatus("qrStatus","Starting QR scanner...");
 
         await qrScanner.start(
             {facingMode:"environment"},
-            {fps:12,qrbox:{width:240,height:240}},
+            {
+                fps:20,
+                qrbox:{width:250,height:250}
+            },
             async decodedText => {
                 if (qrBusy) return;
 
@@ -1106,6 +1121,8 @@ async function startFaceCamera() {
         faceBusy = false;
         consecutiveMatches = 0;
         livenessSamples = [];
+        blinkDetected = false;
+        eyeClosedSeen = false;
 
         document.getElementById("startFaceBtn").disabled = true;
         document.getElementById("verifyBtn").disabled = false;
@@ -1129,6 +1146,8 @@ async function stopFaceCamera() {
     faceCameraRunning = false;
     livenessSamples = [];
     consecutiveMatches = 0;
+    blinkDetected = false;
+    eyeClosedSeen = false;
 
     if (faceStream) {
         faceStream.getTracks().forEach(track => track.stop());
@@ -1148,9 +1167,8 @@ async function stopAllCameras() {
     setStatus("qrStatus","All cameras stopped.");
 }
 
-async function detectDescriptor() {
+async function detectFaceLandmarks() {
     const video = document.getElementById("faceVideo");
-
     if (!video.videoWidth || video.readyState < 2) return null;
 
     return await faceapi
@@ -1161,8 +1179,41 @@ async function detectDescriptor() {
                 scoreThreshold:0.5
             })
         )
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+        .withFaceLandmarks();
+}
+
+// Extract the slower recognition descriptor only when it is actually needed.
+async function detectDescriptor() {
+    const result = await detectFaceLandmarks();
+    return result ? await result.withFaceDescriptor() : null;
+}
+
+function eyeAspectRatio(points) {
+    if (!Array.isArray(points) || points.length < 6) return null;
+    const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const horizontal = distance(points[0], points[3]);
+    if (!horizontal) return null;
+    return (distance(points[1], points[5]) + distance(points[2], points[4])) /
+        (2 * horizontal);
+}
+
+// A simple blink prompt makes a still photograph less likely to pass by itself.
+// It is an extra check, not proof of liveness; replay videos can still imitate it.
+function updateBlinkChallenge(result) {
+    if (!result || !result.landmarks) return blinkDetected;
+    const left = eyeAspectRatio(result.landmarks.getLeftEye());
+    const right = eyeAspectRatio(result.landmarks.getRightEye());
+    if (left === null || right === null) return blinkDetected;
+
+    const average = (left + right) / 2;
+    if (average < 0.19) {
+        eyeClosedSeen = true;
+    } else if (eyeClosedSeen && average > 0.23) {
+        blinkDetected = true;
+        eyeClosedSeen = false;
+        setStatus("faceStatus", "Blink detected. Checking passive anti-spoof and face match...", "success");
+    }
+    return blinkDetected;
 }
 
 /*
@@ -1190,7 +1241,7 @@ async function classifyFaceLiveness(detectionResult) {
      * black pixels. This preserves the model's intended crop scale.
      */
     const cropModeEl = document.getElementById("asCrop");
-    const clampMode = !cropModeEl || cropModeEl.value === "clamp";
+    const clampMode = !!cropModeEl && cropModeEl.value === "clamp";
     let scale = 2.7;
     if (clampMode) {
         // Same as the original Silent-Face code: shrink the scale so the crop fits the frame.
@@ -1252,7 +1303,7 @@ async function classifyFaceLiveness(detectionResult) {
     const orderSel = document.getElementById("asOrder");
     const rgbOrder = !!orderSel && orderSel.value === "rgb";
     const scaleSel = document.getElementById("asScale");
-    const inScale = scaleSel && scaleSel.value === "1" ? 1 / 255 : 1;
+    const inScale = !scaleSel || scaleSel.value === "1" ? 1 / 255 : 1;
     const pixels = ctx.getImageData(0, 0, 80, 80).data;
     const input = new Float32Array(3 * 80 * 80);
     for (let i = 0; i < 80 * 80; i++) {
@@ -1268,7 +1319,7 @@ async function classifyFaceLiveness(detectionResult) {
     const output = outputMap[antiSpoofSession.outputNames[0]].data;
     if (!output || output.length < 3) throw new Error("Unexpected anti-spoof model output.");
 
-    // The model card for this exact ONNX file documents [live, print, replay].
+    // This exact ONNX model card documents output order [live, print, replay] (class 0 is live).
     // ONNX output is converted to probabilities with softmax when it is logits.
     const raw = [Number(output[0]), Number(output[1]), Number(output[2])];
     const rawTotal = raw.reduce((a, b) => a + b, 0);
@@ -1283,7 +1334,7 @@ async function classifyFaceLiveness(detectionResult) {
     }
 
     const idxSel = document.getElementById("asLiveIdx");
-    const liveIdx = idxSel ? Number(idxSel.value) : 1;
+    const liveIdx = idxSel ? Number(idxSel.value) : 0;
     const spoofIdx = [0, 1, 2].filter(i => i !== liveIdx);
     const live = probabilities[liveIdx];
     const print = probabilities[spoofIdx[0]];
@@ -1314,7 +1365,7 @@ async function checkLiveSequence() {
         const score = await classifyFaceLiveness(result);
         scores.push(score);
         if (i < LIVENESS_FRAMES_REQUIRED - 1) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await waitForNextFaceVideoFrame(document.getElementById("faceVideo"));
         }
     }
 
@@ -1345,40 +1396,51 @@ async function faceDetectionLoop() {
             faceBusy = true;
 
             try {
-                const result = await detectDescriptor();
+                const result = await detectFaceLandmarks();
 
-                if (result && facePurpose === "attendance") {
-                    const liveness = await classifyFaceLiveness(result);
-                    livenessSamples.push({
-                        live: liveness.live,
-                        spoof: liveness.print + liveness.replay,
-                        descriptor: Array.from(result.descriptor)
-                    });
-                    if (livenessSamples.length > LIVENESS_FRAMES_REQUIRED) livenessSamples.shift();
+                if (result) {
+                    updateBlinkChallenge(result);
 
-                    if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
-                        const avgLive = livenessSamples.reduce((sum, item) => sum + item.live, 0) / LIVENESS_FRAMES_REQUIRED;
-                        const avgSpoof = livenessSamples.reduce((sum, item) => sum + item.spoof, 0) / LIVENESS_FRAMES_REQUIRED;
-                        const minLive = Math.min(...livenessSamples.map(item => item.live));
-                        if (minLive >= LIVENESS_THRESHOLD) {
-                            const latestDescriptor = livenessSamples[livenessSamples.length - 1].descriptor;
+                    if (facePurpose === "attendance") {
+                        if (!blinkDetected) {
                             livenessSamples = [];
-                            await processFaceMatch(latestDescriptor);
+                            setStatus("faceStatus", "Please blink once while looking at the camera.", "warning");
                         } else {
-                            consecutiveMatches = 0;
-                            // Rolling window: keep the frames, the oldest drops out on the next one.
-                            setStatus("faceStatus","Live-face confidence was too low. Face the camera in even lighting and try again.","warning");
+                            const liveness = await classifyFaceLiveness(result);
+                            livenessSamples.push({
+                                live: liveness.live,
+                                spoof: liveness.print + liveness.replay
+                            });
+                            if (livenessSamples.length > LIVENESS_FRAMES_REQUIRED) livenessSamples.shift();
+
+                            if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
+                                const minLive = Math.min(...livenessSamples.map(item => item.live));
+                                if (minLive >= LIVENESS_THRESHOLD) {
+                                    // Only run the recognition network after liveness passes.
+                                    const descriptorResult = await result.withFaceDescriptor();
+                                    livenessSamples = [];
+                                    await processFaceMatch(Array.from(descriptorResult.descriptor));
+                                } else {
+                                    consecutiveMatches = 0;
+                                    setStatus("faceStatus", "Passive anti-spoof confidence is low. Keep your face centered and try again.", "warning");
+                                }
+                            } else {
+                                setStatus("faceStatus", `Checking passive liveness... ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames`, "warning");
+                            }
                         }
-                    } else {
-                        setStatus("faceStatus",`Checking passive liveness... ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames`,"warning");
+                    } else if (facePurpose === "registration" && blinkDetected) {
+                        setStatus("faceStatus", "Blink detected. Tap Verify / Register Face to continue.", "success");
+                    } else if (facePurpose === "registration") {
+                        setStatus("faceStatus", "Look at the camera and blink once, then tap Verify / Register Face.", "warning");
                     }
-                } else if (!result && facePurpose === "attendance") {
+                } else if (facePurpose === "attendance") {
                     consecutiveMatches = 0;
                     livenessSamples = [];
-                    setStatus("faceStatus","No clear face detected. Look at the camera.","warning");
+                    setStatus("faceStatus", "No clear face detected. Look at the camera.", "warning");
                 }
             } catch (error) {
                 console.error(error);
+                setStatus("faceStatus", "Face/liveness processing encountered an error. Check Advanced Diagnostics and try again.", "error");
             } finally {
                 faceBusy = false;
             }
