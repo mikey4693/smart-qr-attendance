@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Smart QR Attendance - Optimized Liveness</title>
+<title>Smart QR Attendance - Version A</title>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
@@ -212,7 +212,7 @@ td button{font-size:12px;padding:7px 10px}
 <body>
 <header>
 <h1>📷 Smart QR Attendance</h1>
-<p>QR Scanning + Face Verification + Randomised Liveness Challenge</p>
+<p>QR Scanning + Face Verification + Passive Anti-Spoofing</p>
 </header>
 
 <main class="container">
@@ -244,7 +244,7 @@ td button{font-size:12px;padding:7px 10px}
 
 <section class="card">
 <h2>👤 Face Verification</h2>
-<p class="small">After a valid QR match, the face camera opens automatically. Passive liveness checks five consecutive frames, followed by a random LEFT/RIGHT head-turn challenge and face matching. These checks can still make mistakes and must be tested.</p>
+<p class="small">After a valid QR match, the face camera opens automatically. The system checks five consecutive passive-liveness frames and then matches the face. Verification has a 10-second limit; if it expires, the face camera closes and QR scanning restarts. These checks can still make mistakes and must be tested.</p>
 <video id="faceVideo" autoplay muted playsinline></video>
 <button id="startFaceBtn" onclick="startFaceCamera()">Start Face Camera</button>
 <button class="green" id="verifyBtn" onclick="manualFaceAction()" disabled>Verify / Register Face</button>
@@ -420,8 +420,6 @@ let faceBusy = false;
 let pendingFaceStudent = null;
 let facePurpose = "attendance";
 let consecutiveMatches = 0;
-let headChallengePassed = false;
-let headChallengeActive = false;
 let attendanceVerificationDeadline = 0;
 let attendanceFailureMessage = "";
 let demoModeEnabled = false;
@@ -1146,9 +1144,7 @@ async function startFaceCamera() {
         faceLoopRunning = true;
         faceBusy = false;
         consecutiveMatches = 0;
-        headChallengePassed = false;
-        headChallengeActive = false;
-        attendanceVerificationDeadline = facePurpose === "attendance" ? Date.now() + 5000 : 0;
+        attendanceVerificationDeadline = facePurpose === "attendance" ? Date.now() + 10000 : 0;
         livenessSamples = [];
 
         document.getElementById("startFaceBtn").disabled = true;
@@ -1173,8 +1169,6 @@ async function stopFaceCamera() {
     faceCameraRunning = false;
     livenessSamples = [];
     consecutiveMatches = 0;
-    headChallengePassed = false;
-    headChallengeActive = false;
     attendanceVerificationDeadline = 0;
 
     if (faceStream) {
@@ -1385,81 +1379,20 @@ function waitForNextFaceVideoFrame(video) {
     return new Promise(resolve => setTimeout(resolve, 50));
 }
 
-// Estimate horizontal head turn from nose position relative to the eye line.
-// This is a lightweight browser landmark heuristic, not certified liveness proof.
-function getHeadTurnMetric(result) {
-    if (!result || !result.landmarks) return null;
-    const nose = result.landmarks.getNose();
-    const leftEye = result.landmarks.getLeftEye();
-    const rightEye = result.landmarks.getRightEye();
-    if (!nose || !nose.length || !leftEye || !rightEye) return null;
-    const noseX = nose.reduce((sum, point) => sum + point.x, 0) / nose.length;
-    const eyeLeftX = leftEye.reduce((sum, point) => sum + point.x, 0) / leftEye.length;
-    const eyeRightX = rightEye.reduce((sum, point) => sum + point.x, 0) / rightEye.length;
-    const eyeCenter = (eyeLeftX + eyeRightX) / 2;
-    const eyeWidth = Math.abs(eyeRightX - eyeLeftX);
-    if (eyeWidth < 1) return null;
-    return (noseX - eyeCenter) / eyeWidth;
-}
-
-async function runRandomHeadChallenge() {
-    if (headChallengePassed) return true;
-    if (headChallengeActive) return false;
-    headChallengeActive = true;
-    const video = document.getElementById("faceVideo");
-    const direction = Math.random() < 0.5 ? "LEFT" : "RIGHT";
-    const instruction = direction === "LEFT" ? "Turn your head LEFT" : "Turn your head RIGHT";
-    setStatus("faceStatus", `${instruction}. Keep your face visible.`, "warning");
-
-    try {
-        // Establish a short neutral-position baseline after the instruction.
-        const baselineValues = [];
-        const baselineDeadline = Date.now() + 1800;
-        while (Date.now() < baselineDeadline && faceCameraRunning) {
-            await waitForNextFaceVideoFrame(video);
-            const frame = await detectDescriptor();
-            const metric = getHeadTurnMetric(frame);
-            if (metric !== null) baselineValues.push(metric);
-            if (baselineValues.length >= 3) break;
-        }
-        if (baselineValues.length < 3) {
-            setStatus("faceStatus", "Could not get a clear starting face position. Please try again or ask the teacher.", "warning");
-            return false;
-        }
-        const baseline = baselineValues.reduce((a,b) => a+b, 0) / baselineValues.length;
-        const deadline = Math.min(Date.now() + 5000, attendanceVerificationDeadline || (Date.now() + 5000));
-        let consecutive = 0;
-        // Front-camera preview is mirrored; invert raw image movement for the
-        // student's left/right perspective.
-        const expectedSign = direction === "LEFT" ? -1 : 1;
-        while (Date.now() < deadline && faceCameraRunning) {
-            await waitForNextFaceVideoFrame(video);
-            const frame = await detectDescriptor();
-            const metric = getHeadTurnMetric(frame);
-            if (metric === null) { consecutive = 0; continue; }
-            const signedChange = (metric - baseline) * expectedSign;
-            if (signedChange >= 0.16) consecutive++;
-            else consecutive = 0;
-            if (consecutive >= 3) {
-                headChallengePassed = true;
-                setStatus("faceStatus", `${instruction} detected. Completing face verification...`, "success");
-                return true;
-            }
-        }
-        setStatus("faceStatus", "Head movement was not confirmed before the 5-second verification limit. Please ask the teacher for verification.", "warning");
-        return false;
-    } finally {
-        headChallengeActive = false;
-    }
-}
-
 async function faceDetectionLoop() {
     const video = document.getElementById("faceVideo");
     while (faceLoopRunning && faceCameraRunning) {
         if (facePurpose === "attendance" && attendanceVerificationDeadline && Date.now() >= attendanceVerificationDeadline) {
             faceLoopRunning = false;
-            setStatus("faceStatus", "Verification exceeded 5 seconds. Attendance was not marked; please ask the teacher for verification.", "warning");
+            setStatus("faceStatus", "10-second verification limit reached. Attendance was not marked. Returning to QR scanning...", "warning");
             await stopFaceCamera();
+            pendingFaceStudent = null;
+            facePurpose = "attendance";
+            document.getElementById("pendingStudentBox").classList.add("hidden");
+            setStatus("qrStatus", "Verification timed out. Starting a fresh QR scan...");
+            setTimeout(() => {
+                if (!qrRunning) startQRScanner();
+            }, 500);
             return;
         }
         if (!faceBusy) {
@@ -1484,14 +1417,6 @@ async function faceDetectionLoop() {
                         if (minLive >= LIVENESS_THRESHOLD) {
                             const latestDescriptor = livenessSamples[livenessSamples.length - 1].descriptor;
                             livenessSamples = [];
-                            if (!headChallengePassed) {
-                                const challengeOK = await runRandomHeadChallenge();
-                                if (!challengeOK) {
-                                    faceLoopRunning = false;
-                                    await stopFaceCamera();
-                                    return;
-                                }
-                            }
                             await processFaceMatch(latestDescriptor);
                         } else {
                             consecutiveMatches = 0;
@@ -1674,11 +1599,6 @@ async function manualFaceAction() {
         if (!pendingFaceStudent) {
             alert("Scan a student QR first.");
             return;
-        }
-
-        if (!headChallengePassed) {
-            const challengeOK = await runRandomHeadChallenge();
-            if (!challengeOK) return;
         }
 
         const saved = faceDescriptors[pendingFaceStudent.registerNumber];
