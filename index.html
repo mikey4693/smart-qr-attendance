@@ -400,6 +400,9 @@ const LIVENESS_THRESHOLD = 0.90; // real face scored 99.7%, phone screen 63% in 
 const LIVENESS_FRAMES_REQUIRED = 5;
 
 let students = readJSON(STUDENTS_KEY, []);
+// Default missing department values to ECE while preserving any imported department.
+students = students.map(student => ({ ...student, department: String(student.department || "").trim() || "ECE" }));
+store(STUDENTS_KEY, students);
 let attendance = readJSON(ATTENDANCE_KEY, []);
 let qrMappings = readJSON(MAPPINGS_KEY, {});
 let faceDescriptors = readJSON(FACES_KEY, {});
@@ -690,7 +693,7 @@ function identifyStudent(qrText) {
 function saveStudent() {
     const registerNumber = document.getElementById("regInput").value.trim();
     const name = document.getElementById("nameInput").value.trim();
-    const department = document.getElementById("deptInput").value.trim();
+    const department = document.getElementById("deptInput").value.trim() || "ECE";
     const badge = document.getElementById("badgeInput").value.trim();
     const qrId = document.getElementById("qrInput").value.trim();
 
@@ -909,7 +912,7 @@ function importCSV() {
                     continue;
                 }
 
-                const department = dept >= 0 ? String(row[dept] || "").trim() : "";
+                const department = (dept >= 0 ? String(row[dept] || "").trim() : "") || "ECE";
                 const studentBadge = badge >= 0 ? String(row[badge] || "").trim() : "";
                 const qrId = qr >= 0 ? String(row[qr] || "").trim() : "";
                 const existing = findStudentByRegister(registerNumber);
@@ -1668,7 +1671,7 @@ function renderAttendance() {
 
     body.innerHTML = list.length ? list.map(a => {
         const matchedStudent = findStudentByRegister(a.registerNumber);
-        const department = a.department || (matchedStudent && matchedStudent.department) || "—";
+        const department = a.department || (matchedStudent && matchedStudent.department) || "ECE";
         return `<tr>
         <td>${esc(a.date)}</td>
         <td>${esc(a.time)}</td>
@@ -1702,7 +1705,7 @@ function renderPeriodAttendance(filteredRecords) {
         const count = records.length;
         const rows = records.map(a => {
             const matchedStudent = findStudentByRegister(a.registerNumber);
-            const department = a.department || (matchedStudent && matchedStudent.department) || "—";
+            const department = a.department || (matchedStudent && matchedStudent.department) || "ECE";
             return `<tr>
             <td>${esc(a.registerNumber || "—")}</td>
             <td>${esc(a.name || "—")}</td>
