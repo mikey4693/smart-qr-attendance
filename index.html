@@ -232,7 +232,7 @@ td button{font-size:12px;padding:7px 10px}
 
 <section class="card">
 <h2>👤 Face Verification</h2>
-<p class="small">After a valid QR match, complete the five checks: face detection, a random head turn, two blinks, a smile, and registered-face matching. Passive anti-spoofing also checks five camera frames at a 90% live-confidence threshold. This prototype can still make mistakes and requires real-world testing.</p>
+<p class="small">After a valid QR match, the face camera opens automatically. Passive liveness checks a short sequence of frames for print/screen spoofing before face matching. It may still make mistakes and must be tested.</p>
 <video id="faceVideo" autoplay muted playsinline></video>
 <button id="startFaceBtn" onclick="startFaceCamera()">Start Face Camera</button>
 <button class="green" id="verifyBtn" onclick="manualFaceAction()" disabled>Verify / Register Face</button>
@@ -248,7 +248,7 @@ td button{font-size:12px;padding:7px 10px}
   <div class="liveness-score"><strong id="printScore">—</strong><span>Class 1</span></div>
   <div class="liveness-score"><strong id="replayScore">—</strong><span>Class 2</span></div>
 </div>
-<div class="small" style="margin-top:8px">Input scale: <select id="asScale"><option value="1" selected>0-1 (divide by 255) — model default</option><option value="255">raw 0-255 (diagnostic)</option></select> Channel order: <select id="asOrder"><option value="bgr">BGR (original repo)</option><option value="rgb">RGB</option></select> Crop: <select id="asCrop"><option value="pad" selected>2.7× crop with padding — model default</option><option value="clamp">fit in frame (diagnostic)</option></select> Live class: <select id="asLiveIdx"><option value="0" selected>class 0 (live — this ONNX model)</option><option value="1">class 1 (diagnostic)</option></select></div>
+<div class="small" style="margin-top:8px">Input scale: <select id="asScale"><option value="255">raw 0-255 (original repo)</option><option value="1">0-1 (divide by 255)</option></select> Channel order: <select id="asOrder"><option value="bgr">BGR (original repo)</option><option value="rgb">RGB</option></select> Crop: <select id="asCrop"><option value="clamp">fit in frame (original repo)</option><option value="pad">black padding</option></select> Live class: <select id="asLiveIdx"><option value="1">class 1 (original repo)</option><option value="0">class 0</option></select></div>
 <p id="livenessExtra" class="small">Current threshold: 90% (every frame must pass). Model output order is based on the model card.</p>
 <div class="liveness-crop-row">
   <canvas id="livenessCropPreview" width="80" height="80" aria-label="80 by 80 face crop sent to anti-spoof model"></canvas>
@@ -262,10 +262,22 @@ td button{font-size:12px;padding:7px 10px}
 <details class="advanced-diagnostics student-details">
 <summary>🎓 Student Database</summary>
 <div class="student-details-content">
-<label for="csvFile">Import student CSV</label>
-<input type="file" id="csvFile" accept=".csv,text/csv">
-<button onclick="importCSV()">Import CSV</button>
-<p class="small">Recommended headers: RegisterNumber, Name, Department, Badge, QRID. Register number and name are required.</p>
+<details class="advanced-diagnostics data-tools">
+<summary>⇅ Student Data — Import / Export <span class="diagnostics-hint">CSV &amp; TSV files</span></summary>
+<div class="status" style="margin:0;border:0;border-top:1px solid var(--line);border-radius:0">
+  <h3 style="margin-top:4px">Upload student list</h3>
+  <label for="csvFile">Choose a CSV or TSV file</label>
+  <input type="file" id="csvFile" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values">
+  <button onclick="importCSV()">Import Student File</button>
+  <p class="small">Supported formats: .csv and .tsv. Required columns: RegisterNumber and Name. Optional columns: Department, Badge, QRID.</p>
+  <hr>
+  <h3>Download student data</h3>
+  <button class="green" onclick="exportStudents('csv')">⬇ Download Students CSV</button>
+  <button class="gray" onclick="exportStudents('tsv')">⬇ Download Students TSV</button>
+  <button class="gray" onclick="downloadStudentTemplate('csv')">CSV Template</button>
+  <button class="gray" onclick="downloadStudentTemplate('tsv')">TSV Template</button>
+</div>
+</details>
 
 <hr>
 <h3>Add / Update Student</h3>
@@ -332,8 +344,14 @@ td button{font-size:12px;padding:7px 10px}
 <h2>📋 Attendance Records</h2>
 <label for="attendanceDate">Filter by date</label>
 <input type="date" id="attendanceDate" onchange="renderAttendance()">
-<button onclick="exportAttendance()">Export Attendance CSV</button>
-<button class="gray" onclick="exportStudents()">Export Students CSV</button>
+<details class="advanced-diagnostics data-tools" style="margin:10px 0 14px">
+<summary>⇩ Download Attendance <span class="diagnostics-hint">Choose file format</span></summary>
+<div class="status" style="margin:0;border:0;border-top:1px solid var(--line);border-radius:0">
+  <button class="green" onclick="exportAttendance('csv')">⬇ Download Attendance CSV</button>
+  <button class="gray" onclick="exportAttendance('tsv')">⬇ Download Attendance TSV</button>
+  <p class="small">Downloads all saved attendance records, including date, time, session and student details.</p>
+</div>
+</details>
 <button class="gray" onclick="clearDateFilter()">Show All Dates</button>
 <button class="red" onclick="resetAttendance()">🔴 Reset Attendance</button>
 <div class="table-wrap">
@@ -363,7 +381,7 @@ const MODEL_URL = "https://vladmandic.github.io/face-api/model/";
 const FACE_THRESHOLD = 0.50;
 /* MiniFASNet V2: passive print/replay anti-spoof model (Apache-2.0 model card). */
 const ANTISPOOF_MODEL_URL = "https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx";
-const LIVENESS_THRESHOLD = 0.90; // conservative prototype threshold; validate on varied devices and lighting
+const LIVENESS_THRESHOLD = 0.90; // real face scored 99.7%, phone screen 63% in testing
 const LIVENESS_FRAMES_REQUIRED = 5;
 
 let students = readJSON(STUDENTS_KEY, []);
@@ -374,13 +392,6 @@ let faceDescriptors = readJSON(FACES_KEY, {});
 let modelsLoaded = false;
 let antiSpoofSession = null;
 let livenessSamples = [];
-let blinkDetected = false;
-let eyeClosedSeen = false;
-let blinkCount = 0;
-let challengeStep = "head";
-let challengeDirection = "left";
-let smileStableFrames = 0;
-let challengeComplete = false;
 let qrScanner = null;
 let qrRunning = false;
 let qrBusy = false;
@@ -793,27 +804,26 @@ function updateStats() {
    CSV IMPORT
    ====================================================== */
 
-function parseCSV(text) {
+function parseDelimited(text, delimiter) {
     const rows = [];
     let row = [], field = "", quoted = false;
+    text = String(text || "").replace(/^\uFEFF/, "");
 
-    text = text.replace(/^\uFEFF/, "");
-
-    for (let i=0; i<text.length; i++) {
+    for (let i = 0; i < text.length; i++) {
         const c = text[i];
 
         if (c === '"') {
-            if (quoted && text[i+1] === '"') {
+            if (quoted && text[i + 1] === '"') {
                 field += '"';
                 i++;
             } else {
                 quoted = !quoted;
             }
-        } else if (c === "," && !quoted) {
+        } else if (c === delimiter && !quoted) {
             row.push(field.trim());
             field = "";
         } else if ((c === "\n" || c === "\r") && !quoted) {
-            if (c === "\r" && text[i+1] === "\n") i++;
+            if (c === "\r" && text[i + 1] === "\n") i++;
             row.push(field.trim());
             if (row.some(x => x !== "")) rows.push(row);
             row = [];
@@ -828,6 +838,12 @@ function parseCSV(text) {
     return rows;
 }
 
+function detectDelimiter(text, filename = "") {
+    if (/\.tsv$/i.test(filename)) return "\t";
+    const firstLine = String(text || "").replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0];
+    return firstLine.split("\t").length > firstLine.split(",").length ? "\t" : ",";
+}
+
 function canonicalHeader(value) {
     return norm(value).replace(/[^a-z0-9]/g, "");
 }
@@ -835,7 +851,7 @@ function canonicalHeader(value) {
 function importCSV() {
     const file = document.getElementById("csvFile").files[0];
     if (!file) {
-        alert("Choose your CSV file first.");
+        alert("Choose a CSV or TSV file first.");
         return;
     }
 
@@ -843,15 +859,16 @@ function importCSV() {
 
     reader.onload = event => {
         try {
-            const rows = parseCSV(event.target.result);
+            const text = String(event.target.result || "");
+            const delimiter = detectDelimiter(text, file.name);
+            const rows = parseDelimited(text, delimiter);
 
             if (rows.length < 2) {
-                alert("No student records found in this CSV.");
+                alert("No student records found in this file.");
                 return;
             }
 
             const headers = rows[0].map(canonicalHeader);
-
             function col(names) {
                 return headers.findIndex(h => names.includes(h));
             }
@@ -863,12 +880,11 @@ function importCSV() {
             const qr = col(["qrid","qr","qrvalue","qrnumber","qrcode","qrdata"]);
 
             if (reg < 0 || name < 0) {
-                alert("CSV needs register number and name columns.");
+                alert("File needs RegisterNumber and Name columns.");
                 return;
             }
 
             let added=0, updated=0, skipped=0;
-
             for (const row of rows.slice(1)) {
                 const registerNumber = String(row[reg] || "").trim();
                 const studentName = String(row[name] || "").trim();
@@ -881,7 +897,6 @@ function importCSV() {
                 const department = dept >= 0 ? String(row[dept] || "").trim() : "";
                 const studentBadge = badge >= 0 ? String(row[badge] || "").trim() : "";
                 const qrId = qr >= 0 ? String(row[qr] || "").trim() : "";
-
                 const existing = findStudentByRegister(registerNumber);
 
                 if (existing) {
@@ -891,33 +906,24 @@ function importCSV() {
                     if (qrId) existing.qrId = qrId;
                     updated++;
                 } else {
-                    students.push({
-                        registerNumber,
-                        name:studentName,
-                        department,
-                        badge:studentBadge,
-                        qrId
-                    });
+                    students.push({registerNumber,name:studentName,department,badge:studentBadge,qrId});
                     added++;
                 }
             }
 
             store(STUDENTS_KEY, students);
             refreshUI();
-
-            alert(`CSV import complete!\nAdded: ${added}\nUpdated: ${updated}\nSkipped: ${skipped}`);
+            const format = delimiter === "\t" ? "TSV" : "CSV";
+            alert(`${format} import complete!\nAdded: ${added}\nUpdated: ${updated}\nSkipped: ${skipped}`);
+            document.getElementById("csvFile").value = "";
         } catch (error) {
             console.error(error);
-            alert("Could not read this CSV.");
+            alert("Could not read this CSV/TSV file.");
         }
     };
 
     reader.readAsText(file);
 }
-
-/* ======================================================
-   LOAD FACE AI MODELS
-   ====================================================== */
 
 async function loadModels() {
     if (modelsLoaded) {
@@ -983,26 +989,13 @@ async function startQRScanner() {
     }
 
     try {
-        if (!qrScanner) {
-            const qrFormats = typeof Html5QrcodeSupportedFormats !== "undefined"
-                ? {
-                    formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-                    useBarCodeDetectorIfSupported: true
-                }
-                : undefined;
-            qrScanner = qrFormats
-                ? new Html5Qrcode("qr-reader", qrFormats)
-                : new Html5Qrcode("qr-reader");
-        }
+        if (!qrScanner) qrScanner = new Html5Qrcode("qr-reader");
 
         setStatus("qrStatus","Starting QR scanner...");
 
         await qrScanner.start(
             {facingMode:"environment"},
-            {
-                fps:20,
-                qrbox:{width:250,height:250}
-            },
+            {fps:12,qrbox:{width:240,height:240}},
             async decodedText => {
                 if (qrBusy) return;
 
@@ -1126,15 +1119,14 @@ async function startFaceCamera() {
         faceBusy = false;
         consecutiveMatches = 0;
         livenessSamples = [];
-        resetSecurityChallenge();
 
         document.getElementById("startFaceBtn").disabled = true;
         document.getElementById("verifyBtn").disabled = false;
 
         setStatus("faceStatus",
             facePurpose === "registration"
-            ? "Security check 1/5: Face detected. Follow the head-turn, blink and smile prompts."
-            : "Security check 1/5: Keep your face centered. Preparing a random liveness challenge...",
+            ? "Look at the camera and hold still, then tap Verify / Register Face."
+            : "Looking for a face match...",
             "success");
 
         faceDetectionLoop();
@@ -1150,7 +1142,6 @@ async function stopFaceCamera() {
     faceCameraRunning = false;
     livenessSamples = [];
     consecutiveMatches = 0;
-    resetSecurityChallenge();
 
     if (faceStream) {
         faceStream.getTracks().forEach(track => track.stop());
@@ -1170,8 +1161,9 @@ async function stopAllCameras() {
     setStatus("qrStatus","All cameras stopped.");
 }
 
-async function detectFaceLandmarks() {
+async function detectDescriptor() {
     const video = document.getElementById("faceVideo");
+
     if (!video.videoWidth || video.readyState < 2) return null;
 
     return await faceapi
@@ -1182,120 +1174,8 @@ async function detectFaceLandmarks() {
                 scoreThreshold:0.5
             })
         )
-        .withFaceLandmarks();
-}
-
-// Extract the slower recognition descriptor only when it is actually needed.
-async function detectDescriptor() {
-    const result = await detectFaceLandmarks();
-    return result ? await result.withFaceDescriptor() : null;
-}
-
-function eyeAspectRatio(points) {
-    if (!Array.isArray(points) || points.length < 6) return null;
-    const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-    const horizontal = distance(points[0], points[3]);
-    if (!horizontal) return null;
-    return (distance(points[1], points[5]) + distance(points[2], points[4])) /
-        (2 * horizontal);
-}
-
-// Five ordered verification gates: face detection, randomized head turn,
-// two blinks, smile, then face matching. Passive anti-spoofing remains active
-// between the challenge and identity match; none of these checks is foolproof.
-function resetSecurityChallenge() {
-    blinkDetected = false;
-    eyeClosedSeen = false;
-    blinkCount = 0;
-    challengeStep = "head";
-    challengeDirection = Math.random() < 0.5 ? "left" : "right";
-    smileStableFrames = 0;
-    challengeComplete = false;
-}
-
-function normalizedHeadTurn(result) {
-    const landmarks = result && result.landmarks;
-    if (!landmarks) return null;
-    const leftEye = landmarks.getLeftEye();
-    const rightEye = landmarks.getRightEye();
-    const nose = landmarks.positions && landmarks.positions[30];
-    if (!leftEye || !rightEye || !nose) return null;
-    const eyeCenterX = (leftEye.reduce((v,p)=>v+p.x,0)/leftEye.length +
-                        rightEye.reduce((v,p)=>v+p.x,0)/rightEye.length) / 2;
-    const eyeSpan = Math.abs(rightEye.reduce((v,p)=>v+p.x,0)/rightEye.length -
-                             leftEye.reduce((v,p)=>v+p.x,0)/leftEye.length);
-    if (eyeSpan < 1) return null;
-    return (nose.x - eyeCenterX) / eyeSpan;
-}
-
-function updateSecurityChallenge(result) {
-    if (!result || !result.landmarks) return challengeComplete;
-    const landmarks = result.landmarks;
-
-    if (challengeStep === "head") {
-        const yaw = normalizedHeadTurn(result);
-        // The sign is based on the mirrored selfie preview. If a device mirrors
-        // differently, the user can retry; threshold avoids tiny natural motion.
-        const turned = yaw === null ? false :
-            (challengeDirection === "left" ? yaw > 0.16 : yaw < -0.16);
-        if (turned) {
-            challengeStep = "blink";
-            eyeClosedSeen = false;
-            blinkCount = 0;
-            setStatus("faceStatus", "Gate 2/5 passed. Now blink twice while facing the camera.", "warning");
-        } else {
-            setStatus("faceStatus", `Gate 1/5 passed — turn your head slightly to your ${challengeDirection}.`, "warning");
-        }
-        return false;
-    }
-
-    if (challengeStep === "blink") {
-        const left = eyeAspectRatio(landmarks.getLeftEye());
-        const right = eyeAspectRatio(landmarks.getRightEye());
-        if (left !== null && right !== null) {
-            const ear = (left + right) / 2;
-            if (ear < 0.19) eyeClosedSeen = true;
-            else if (eyeClosedSeen && ear > 0.24) {
-                blinkCount++;
-                eyeClosedSeen = false;
-                if (blinkCount >= 2) {
-                    challengeStep = "smile";
-                    smileStableFrames = 0;
-                    setStatus("faceStatus", "Gate 3/5 passed. Smile naturally at the camera.", "warning");
-                } else {
-                    setStatus("faceStatus", "Gate 2/5: One blink detected. Blink once more.", "warning");
-                }
-            }
-        }
-        return false;
-    }
-
-    if (challengeStep === "smile") {
-        const mouth = landmarks.getMouth();
-        const positions = landmarks.positions || [];
-        const faceBox = result.detection && result.detection.box;
-        if (mouth && mouth.length >= 20 && faceBox && faceBox.width > 0) {
-            const cornerY = (mouth[0].y + mouth[6].y) / 2;
-            const centerY = (mouth[3].y + mouth[9].y) / 2;
-            const mouthWidth = Math.abs(mouth[6].x - mouth[0].x);
-            const smileCurve = (centerY - cornerY) / faceBox.width;
-            const wideSmile = mouthWidth / faceBox.width > 0.32;
-            if (smileCurve > 0.018 && wideSmile) smileStableFrames++;
-            else smileStableFrames = 0;
-            if (smileStableFrames >= 3) {
-                challengeStep = "passive";
-                challengeComplete = true;
-                blinkDetected = true;
-                setStatus("faceStatus", "Gates 1–4/5 passed. Checking five passive anti-spoof frames before face matching...", "success");
-            } else {
-                setStatus("faceStatus", `Gate 3/5 passed. Hold a natural smile... ${smileStableFrames}/3`, "warning");
-            }
-        } else {
-            setStatus("faceStatus", "Gate 3/5 passed. Keep your face visible and smile naturally.", "warning");
-        }
-        return challengeComplete;
-    }
-    return challengeComplete;
+        .withFaceLandmarks()
+        .withFaceDescriptor();
 }
 
 /*
@@ -1323,7 +1203,7 @@ async function classifyFaceLiveness(detectionResult) {
      * black pixels. This preserves the model's intended crop scale.
      */
     const cropModeEl = document.getElementById("asCrop");
-    const clampMode = !!cropModeEl && cropModeEl.value === "clamp";
+    const clampMode = !cropModeEl || cropModeEl.value === "clamp";
     let scale = 2.7;
     if (clampMode) {
         // Same as the original Silent-Face code: shrink the scale so the crop fits the frame.
@@ -1385,7 +1265,7 @@ async function classifyFaceLiveness(detectionResult) {
     const orderSel = document.getElementById("asOrder");
     const rgbOrder = !!orderSel && orderSel.value === "rgb";
     const scaleSel = document.getElementById("asScale");
-    const inScale = !scaleSel || scaleSel.value === "1" ? 1 / 255 : 1;
+    const inScale = scaleSel && scaleSel.value === "1" ? 1 / 255 : 1;
     const pixels = ctx.getImageData(0, 0, 80, 80).data;
     const input = new Float32Array(3 * 80 * 80);
     for (let i = 0; i < 80 * 80; i++) {
@@ -1401,7 +1281,7 @@ async function classifyFaceLiveness(detectionResult) {
     const output = outputMap[antiSpoofSession.outputNames[0]].data;
     if (!output || output.length < 3) throw new Error("Unexpected anti-spoof model output.");
 
-    // This exact ONNX model card documents output order [live, print, replay] (class 0 is live).
+    // The model card for this exact ONNX file documents [live, print, replay].
     // ONNX output is converted to probabilities with softmax when it is logits.
     const raw = [Number(output[0]), Number(output[1]), Number(output[2])];
     const rawTotal = raw.reduce((a, b) => a + b, 0);
@@ -1416,7 +1296,7 @@ async function classifyFaceLiveness(detectionResult) {
     }
 
     const idxSel = document.getElementById("asLiveIdx");
-    const liveIdx = idxSel ? Number(idxSel.value) : 0;
+    const liveIdx = idxSel ? Number(idxSel.value) : 1;
     const spoofIdx = [0, 1, 2].filter(i => i !== liveIdx);
     const live = probabilities[liveIdx];
     const print = probabilities[spoofIdx[0]];
@@ -1447,7 +1327,7 @@ async function checkLiveSequence() {
         const score = await classifyFaceLiveness(result);
         scores.push(score);
         if (i < LIVENESS_FRAMES_REQUIRED - 1) {
-            await waitForNextFaceVideoFrame(document.getElementById("faceVideo"));
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
     }
 
@@ -1478,44 +1358,40 @@ async function faceDetectionLoop() {
             faceBusy = true;
 
             try {
-                const result = await detectFaceLandmarks();
+                const result = await detectDescriptor();
 
-                if (result) {
-                    if (!challengeComplete) {
-                        updateSecurityChallenge(result);
-                        livenessSamples = [];
-                    } else if (facePurpose === "attendance") {
-                        const liveness = await classifyFaceLiveness(result);
-                        livenessSamples.push({ live: liveness.live, spoof: liveness.print + liveness.replay });
-                        if (livenessSamples.length > LIVENESS_FRAMES_REQUIRED) livenessSamples.shift();
+                if (result && facePurpose === "attendance") {
+                    const liveness = await classifyFaceLiveness(result);
+                    livenessSamples.push({
+                        live: liveness.live,
+                        spoof: liveness.print + liveness.replay,
+                        descriptor: Array.from(result.descriptor)
+                    });
+                    if (livenessSamples.length > LIVENESS_FRAMES_REQUIRED) livenessSamples.shift();
 
-                        if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
-                            const minLive = Math.min(...livenessSamples.map(item => item.live));
-                            if (minLive >= LIVENESS_THRESHOLD) {
-                                const descriptorResult = await result.withFaceDescriptor();
-                                livenessSamples = [];
-                                setStatus("faceStatus", "Gate 4/5 passed. Passive liveness passed; checking identity (Gate 5/5)...", "success");
-                                await processFaceMatch(Array.from(descriptorResult.descriptor));
-                            } else {
-                                consecutiveMatches = 0;
-                                livenessSamples = [];
-                                setStatus("faceStatus", "Passive anti-spoof confidence is below 90%. Re-centre your face and hold steady for another check.", "warning");
-                            }
+                    if (livenessSamples.length === LIVENESS_FRAMES_REQUIRED) {
+                        const avgLive = livenessSamples.reduce((sum, item) => sum + item.live, 0) / LIVENESS_FRAMES_REQUIRED;
+                        const avgSpoof = livenessSamples.reduce((sum, item) => sum + item.spoof, 0) / LIVENESS_FRAMES_REQUIRED;
+                        const minLive = Math.min(...livenessSamples.map(item => item.live));
+                        if (minLive >= LIVENESS_THRESHOLD) {
+                            const latestDescriptor = livenessSamples[livenessSamples.length - 1].descriptor;
+                            livenessSamples = [];
+                            await processFaceMatch(latestDescriptor);
                         } else {
-                            setStatus("faceStatus", `Gates 1–4/5 passed. Passive anti-spoof: ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames (90% each).`, "warning");
+                            consecutiveMatches = 0;
+                            // Rolling window: keep the frames, the oldest drops out on the next one.
+                            setStatus("faceStatus","Live-face confidence was too low. Face the camera in even lighting and try again.","warning");
                         }
-                    } else if (facePurpose === "registration") {
-                        setStatus("faceStatus", "Gates 1–4/5 passed. Passive anti-spoof is ready; tap Verify / Register Face.", "success");
+                    } else {
+                        setStatus("faceStatus",`Checking passive liveness... ${livenessSamples.length}/${LIVENESS_FRAMES_REQUIRED} frames`,"warning");
                     }
-                } else {
+                } else if (!result && facePurpose === "attendance") {
                     consecutiveMatches = 0;
                     livenessSamples = [];
-                    if (facePurpose === "attendance") setStatus("faceStatus", "Gate 1/5: No clear face detected. Look at the camera.", "warning");
-                    else setStatus("faceStatus", "No clear face detected. Look at the camera.", "warning");
+                    setStatus("faceStatus","No clear face detected. Look at the camera.","warning");
                 }
             } catch (error) {
                 console.error(error);
-                setStatus("faceStatus", "Face/liveness processing encountered an error. Check Advanced Diagnostics and try again.", "error");
             } finally {
                 faceBusy = false;
             }
@@ -1632,11 +1508,6 @@ async function manualFaceAction() {
 
     if (faceBusy) {
         setStatus("faceStatus","Wait for the current face detection to finish.");
-        return;
-    }
-
-    if (!challengeComplete) {
-        setStatus("faceStatus", "Complete the head-turn, two-blink and smile challenges before continuing.", "warning");
         return;
     }
 
@@ -1795,12 +1666,14 @@ function clearDateFilter() {
     renderAttendance();
 }
 
-function downloadCSV(filename,rows) {
-    const csv = rows.map(row =>
-        row.map(value => '"' + String(value ?? "").replace(/"/g,'""') + '"').join(",")
+function downloadDelimited(filename, rows, delimiter) {
+    const text = rows.map(row =>
+        row.map(value => '"' + String(value ?? "").replace(/"/g, '""') + '"').join(delimiter)
     ).join("\r\n");
 
-    const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+    const isTSV = delimiter === "\t";
+    const mime = isTSV ? "text/tab-separated-values;charset=utf-8" : "text/csv;charset=utf-8";
+    const blob = new Blob(["\uFEFF" + text], {type:mime});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
 
@@ -1809,29 +1682,38 @@ function downloadCSV(filename,rows) {
     document.body.appendChild(a);
     a.click();
     a.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url),1000);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function exportAttendance() {
+function exportAttendance(format = "csv") {
+    const ext = format === "tsv" ? "tsv" : "csv";
+    const delimiter = ext === "tsv" ? "\t" : ",";
     const rows = [["Date","Time","Session","Mode","RegisterNumber","Name","Status"]];
 
     attendance.forEach(a => rows.push([
         a.date,a.time,a.session || "",a.mode || "Normal",a.registerNumber,a.name,a.status
     ]));
-
-    downloadCSV("smart_qr_attendance.csv",rows);
+    downloadDelimited(`smart_qr_attendance.${ext}`, rows, delimiter);
 }
 
-function exportStudents() {
+function exportStudents(format = "csv") {
+    const ext = format === "tsv" ? "tsv" : "csv";
+    const delimiter = ext === "tsv" ? "\t" : ",";
     const rows = [["RegisterNumber","Name","Department","Badge","QRID"]];
 
     students.forEach(s => rows.push([
         s.registerNumber,s.name,s.department || "",s.badge || "",s.qrId || ""
     ]));
-
-    downloadCSV("smart_qr_students.csv",rows);
+    downloadDelimited(`smart_qr_students.${ext}`, rows, delimiter);
 }
+
+function downloadStudentTemplate(format = "csv") {
+    const ext = format === "tsv" ? "tsv" : "csv";
+    const delimiter = ext === "tsv" ? "\t" : ",";
+    downloadDelimited(`smart_qr_student_template.${ext}`,
+        [["RegisterNumber","Name","Department","Badge","QRID"]], delimiter);
+}
+
 function resetAttendance() {
     if (attendance.length === 0) {
         alert("There are no attendance records to reset.");
